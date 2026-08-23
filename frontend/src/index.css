@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import 'tailwindcss';
+
+/* =====================================================================
+   Design tokens — "Kitchen Ticket" system
+   Rationale: the product's real signature is the order lifecycle
+   (Received -> Preparing -> Ready -> Served), so the palette and the
+   card motif are built around a literal kitchen-docket feel rather
+   than a generic SaaS dashboard look.
+   ===================================================================== */
+@theme {
+  /* Base surfaces */
+  --color-ink: #1c1b1a;
+  --color-ink-soft: #2c2a28;
+  --color-paper: #faf9f6;
+  --color-paper-dim: #f0eee8;
+  --color-slate: #6b6b68;
+  --color-line: #e4e1d8;
+
+  /* Brand */
+  --color-saffron: #e8a33d;
+  --color-saffron-dark: #c8862a;
+
+  /* Status rail (used consistently across KDS / table grid / order status) */
+  --color-status-received: #6b6b68; /* grey  */
+  --color-status-preparing: #e8a33d; /* amber */
+  --color-status-ready: #3f7a5c; /* basil */
+  --color-status-delayed: #c1432e; /* chili */
+  --color-status-served: #2f6fed; /* cobalt */
+
+  --color-basil: #3f7a5c;
+  --color-basil-soft: #e6f0ea;
+  --color-chili: #c1432e;
+  --color-chili-soft: #fbe9e5;
+  --color-cobalt: #2f6fed;
+  --color-cobalt-soft: #e8effd;
+
+  /* Typography */
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --radius-ticket: 0.375rem;
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+}
+
+/* Perforated "ticket" edge — signature visual motif for order cards */
+.ticket-edge {
+  position: relative;
+}
+.ticket-edge::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background-image: radial-gradient(circle, var(--color-paper) 3px, transparent 3.5px);
+  background-size: 12px 8px;
+  background-repeat: repeat-x;
+  background-position: center;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-cobalt);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

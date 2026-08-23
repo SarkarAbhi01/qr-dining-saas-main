@@ -1,0 +1,655 @@
+// =====================================================================
+// QR Contactless Dining & Restaurant Management SaaS
+// Prisma Schema — PostgreSQL
+// =====================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================================================================
+// ENUMS
+// =====================================================================
+
+enum UserRole {
+  SUPERADMIN
+  OWNER
+  MANAGER
+  CHEF
+  WAITER
+}
+
+enum RestaurantStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  TRIALING
+}
+
+// A restaurant is charged one way or the other, never both — enforced
+// at the application layer in the SuperAdmin controller (see comment on
+// Restaurant.revenueModel).
+enum RevenueModel {
+  MONTHLY_FEE
+  COMMISSION
+}
+
+enum ItemType {
+  VEG
+  NON_VEG
+  EGG
+  VEGAN
+}
+
+// Portion ordered for a menu item that offers Half & Full sizing.
+// Items without hasHalfFull always use FULL (it just means "the one
+// price the item has" in that case).
+enum Portion {
+  FULL
+  HALF
+}
+
+enum TableStatus {
+  EMPTY        // Green  — free, no active session
+  OCCUPIED     // Red    — active session, order(s) placed
+  NEEDS_ATTENTION // Yellow — call waiter / bill requested
+  RESERVED
+}
+
+// One continuous "sitting" at a table, from QR scan to bill settled.
+// This is what lets us restrict "Request Bill" to a single active
+// request per sitting while still allowing multiple orders to be added.
+enum SessionStatus {
+  ACTIVE
+  BILL_REQUESTED
+  CLOSED
+}
+
+// How a table's sitting was opened — surfaced to the Owner so they can
+// see whether a table went occupied via a customer scanning the QR
+// themselves, or a staff member seating a walk-in manually.
+enum SessionSource {
+  CUSTOMER_QR
+  STAFF_MANUAL
+}
+
+enum OrderStatus {
+  PENDING      // just placed, not yet acknowledged by kitchen
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+  PAID
+}
+
+enum OrderItemStatus {
+  RECEIVED
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+}
+
+enum OrderSource {
+  CUSTOMER_QR
+  WAITER_MANUAL
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  UPI
+  STRIPE
+  RAZORPAY
+  WALLET
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+// How the bill for a dining session is being divided
+enum SplitType {
+  FULL          // one person pays the whole bill
+  EQUAL         // split evenly across N people
+  CUSTOM        // custom amount / item allocation per payer
+}
+
+enum WaiterCallStatus {
+  PENDING
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum WaiterCallType {
+  CALL_WAITER
+  REQUEST_BILL
+  ASSISTANCE
+}
+
+// =====================================================================
+// PLATFORM LEVEL (Superadmin)
+// =====================================================================
+
+model SubscriptionPlan {
+  id             String   @id @default(uuid())
+  name           String   @unique   // e.g. "Starter", "Pro", "Enterprise"
+  description    String?
+  priceMonthly   Decimal  @db.Decimal(10, 2)
+  priceYearly    Decimal? @db.Decimal(10, 2)
+  maxTables      Int      @default(10)
+  maxStaff       Int      @default(10)
+  features       Json?    // flexible feature flags, e.g. {"analytics": true, "kds": true}
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  restaurants    Restaurant[]
+
+  @@map("subscription_plans")
+}
+
+model Restaurant {
+  id               String            @id @default(uuid())
+  name             String
+  slug             String            @unique // used in QR / public menu URLs
+  address          String?
+  phone            String?
+  email            String?
+  logoUrl          String?
+  currency         String            @default("INR")
+  timezone         String            @default("Asia/Kolkata")
+  status           RestaurantStatus  @default(TRIAL)
+  // Free-text reason SuperAdmin gives whenever status changes to
+  // SUSPENDED or CANCELLED — surfaced back to the restaurant and kept
+  // for accountability. Deletion reasons live in DeletionLog instead,
+  // since the row itself won't exist to read this from afterward.
+  statusReason     String?
+
+  // The Superadmin (platform owner) who onboarded / manages this tenant
+  superadminId     String
+  superadmin       User              @relation("SuperadminRestaurants", fields: [superadminId], references: [id])
+
+  subscriptionPlanId String?
+  subscriptionPlan   SubscriptionPlan? @relation(fields: [subscriptionPlanId], references: [id])
+  subscriptionStatus SubscriptionStatus @default(TRIALING)
+  // Manually controlled by SuperAdmin — "assign plan for N days" sets
+  // this to now + N days rather than relying on any billing cycle.
+  subscriptionEndsAt DateTime?
+
+  // --- Revenue model: a restaurant is charged EITHER a flat monthly
+  // fee (via its SubscriptionPlan) OR a commission per table-booking
+  // order — never both. `revenueModel` is the single source of truth;
+  // commissionRatePercent only applies when it's COMMISSION.
+  revenueModel         RevenueModel @default(MONTHLY_FEE)
+  commissionRatePercent Decimal?    @db.Decimal(5, 2)
+
+  // --- SuperAdmin bypass toggle: when enabled, table/staff limit checks
+  // use these custom values instead of the subscription plan's, until
+  // customLimitsExpiresAt passes.
+  customLimitsEnabled   Boolean   @default(false)
+  customMaxTables       Int?
+  customMaxStaff        Int?
+  customLimitsExpiresAt DateTime?
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  users            User[]            @relation("RestaurantUsers")
+  tables           RestaurantTable[]
+  categories       Category[]
+  menuItems        MenuItem[]
+  orders           Order[]
+  diningSessions   DiningSession[]
+  payments         Payment[]
+  waiterCalls      WaiterCall[]
+  invoices         Invoice[]
+  feedback         Feedback[]
+
+  @@index([status])
+  @@map("restaurants")
+}
+
+// Preserves an audit trail of WHY a restaurant was deleted even after
+// the row (and everything cascading from it) is gone. Deliberately not
+// a foreign key to Restaurant — it must survive the deletion it logs.
+model DeletionLog {
+  id             String   @id @default(uuid())
+  restaurantId   String
+  restaurantName String
+  reason         String
+  deletedById    String
+  deletedAt      DateTime @default(now())
+
+  @@map("deletion_logs")
+}
+
+// Customer-submitted rating/comment, reachable from the table page
+// (typically shown after the bill is settled, but not gated on it).
+// FEEDBACK/REVIEW: general rating+comment about the dining experience.
+// COMPLAINT: a specific grievance, optionally aimed at a named Waiter
+// or Chef so the Owner can see it under that staff member's record.
+enum FeedbackType {
+  REVIEW
+  COMPLAINT
+}
+
+model Feedback {
+  id              String       @id @default(uuid())
+  restaurantId    String
+  restaurant      Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableId         String?
+  table           RestaurantTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  diningSessionId String?
+  type            FeedbackType @default(REVIEW)
+  rating          Int          // 1-5
+  comment         String?
+  aboutWaiterId   String?
+  aboutWaiter     User?        @relation("FeedbackAboutWaiter", fields: [aboutWaiterId], references: [id])
+  aboutChefId     String?
+  aboutChef       User?        @relation("FeedbackAboutChef", fields: [aboutChefId], references: [id])
+  createdAt       DateTime     @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@map("feedback")
+}
+
+// Platform-level billing record between Superadmin <-> Restaurant
+model Invoice {
+  id           String   @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  amount       Decimal  @db.Decimal(10, 2)
+  status       PaymentStatus @default(PENDING)
+  periodStart  DateTime
+  periodEnd    DateTime
+  paidAt       DateTime?
+  createdAt    DateTime @default(now())
+
+  @@map("invoices")
+}
+
+// =====================================================================
+// USERS & AUTH (RBAC)
+// =====================================================================
+
+model User {
+  id            String     @id @default(uuid())
+  // NULL for SUPERADMIN, required for all restaurant-scoped roles
+  restaurantId  String?
+  restaurant    Restaurant? @relation("RestaurantUsers", fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name          String
+  email         String     @unique
+  phone         String?
+  passwordHash  String
+  role          UserRole
+  isActive      Boolean    @default(true)
+  lastLoginAt   DateTime?
+  // Owner-granted permission: Chef/Waiter accounts can only see their
+  // own performance report if this is explicitly turned on for them.
+  canViewOwnReports Boolean @default(false)
+
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Restaurants this user (as SUPERADMIN) has onboarded
+  ownedRestaurants Restaurant[] @relation("SuperadminRestaurants")
+
+  waiterOrders     Order[]       @relation("WaiterTakenOrders")
+  acceptedOrders   Order[]       @relation("OrderAcceptedBy")
+  servedOrders     Order[]       @relation("OrderServedBy")
+  openedSessions   DiningSession[] @relation("SessionOpenedBy")
+  collectedPayments Payment[]    @relation("PaymentCollectedBy")
+  waiterComplaints Feedback[]    @relation("FeedbackAboutWaiter")
+  chefComplaints   Feedback[]    @relation("FeedbackAboutChef")
+  acknowledgedCalls WaiterCall[] @relation("AcknowledgedByWaiter")
+  refreshTokens    RefreshToken[]
+
+  @@index([restaurantId, role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// =====================================================================
+// TABLES & QR / DINING SESSIONS
+// =====================================================================
+
+model RestaurantTable {
+  id           String       @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  tableNumber  String       // e.g. "T1", "12", "Patio-3"
+  capacity     Int          @default(4)
+  qrCodeUrl    String       // relative order-page path encoded in the QR (origin is supplied by the client at render time)
+  status       TableStatus  @default(EMPTY)
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  diningSessions DiningSession[]
+  orders         Order[]
+  waiterCalls    WaiterCall[]
+  feedback       Feedback[]
+
+  @@unique([restaurantId, tableNumber])
+  @@map("restaurant_tables")
+}
+
+// Represents one customer "sitting" — created on first QR scan,
+// closed once the bill is fully paid. Enforces single active
+// bill-request per sitting; multiple orders can be added while ACTIVE.
+model DiningSession {
+  id             String        @id @default(uuid())
+  restaurantId   String
+  restaurant     Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableId        String
+  table          RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  status         SessionStatus @default(ACTIVE)
+  guestCount     Int?
+  startedAt      DateTime      @default(now())
+  billRequestedAt DateTime?
+  closedAt       DateTime?
+
+  // Occupancy accountability: was this sitting opened by a customer
+  // scanning the table QR themselves, or by a staff member seating a
+  // walk-in manually? `openedById` is null for CUSTOMER_QR.
+  source         SessionSource @default(CUSTOMER_QR)
+  openedById     String?
+  openedBy       User?         @relation("SessionOpenedBy", fields: [openedById], references: [id])
+
+  orders         Order[]
+  billSplits     BillSplit[]
+  payments       Payment[]
+
+  @@index([restaurantId, status])
+  @@index([tableId, status])
+  @@map("dining_sessions")
+}
+
+// =====================================================================
+// MENU
+// =====================================================================
+
+model Category {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name         String
+  sequence     Int        @default(0)
+  isActive     Boolean    @default(true)
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  menuItems    MenuItem[]
+
+  @@index([restaurantId, sequence])
+  @@map("categories")
+}
+
+model MenuItem {
+  id            String     @id @default(uuid())
+  categoryId    String
+  category      Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name          String
+  description   String?
+  imageUrl      String?
+  price         Decimal    @db.Decimal(10, 2) // the Full-portion price (or the only price, if hasHalfFull is false)
+  hasHalfFull   Boolean    @default(false)     // when true, customers choose Half or Full at order time
+  halfPrice     Decimal?   @db.Decimal(10, 2)  // required (validated at the API layer) when hasHalfFull is true
+  type          ItemType   @default(VEG)
+  isAvailable   Boolean    @default(true)
+  isFeatured    Boolean    @default(false)
+  spiceLevel    Int?       // 0-3, optional
+  preparationMinutes Int?  // used for KDS elapsed-time thresholds
+
+  sequence      Int        @default(0)
+
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  modifierGroups ModifierGroup[]
+  orderItems     OrderItem[]
+
+  @@index([restaurantId, categoryId, isAvailable])
+  @@map("menu_items")
+}
+
+// Optional add-ons / customizations, e.g. "Size", "Toppings"
+model ModifierGroup {
+  id          String     @id @default(uuid())
+  menuItemId  String
+  menuItem    MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  name        String     // e.g. "Choose Size"
+  minSelect   Int        @default(0)
+  maxSelect   Int        @default(1)
+
+  options     ModifierOption[]
+
+  @@map("modifier_groups")
+}
+
+model ModifierOption {
+  id              String        @id @default(uuid())
+  modifierGroupId String
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+  name            String        // e.g. "Large", "Extra Cheese"
+  extraPrice      Decimal       @db.Decimal(10, 2) @default(0)
+
+  orderItemModifiers OrderItemModifier[]
+
+  @@map("modifier_options")
+}
+
+// =====================================================================
+// ORDERS
+// =====================================================================
+
+model Order {
+  id             String       @id @default(uuid())
+  restaurantId   String
+  restaurant     Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableId        String
+  table          RestaurantTable @relation(fields: [tableId], references: [id])
+  diningSessionId String
+  diningSession  DiningSession @relation(fields: [diningSessionId], references: [id], onDelete: Cascade)
+
+  status         OrderStatus  @default(PENDING)
+  source         OrderSource  @default(CUSTOMER_QR)
+
+  // Set when a Waiter manually keys in the order for a customer
+  takenByWaiterId String?
+  takenByWaiter   User?       @relation("WaiterTakenOrders", fields: [takenByWaiterId], references: [id])
+
+  // Accountability: whichever kitchen-side user (Chef, Manager, or
+  // Owner) claims the order is recorded here, so a mistake can always
+  // be traced back to who was responsible for cooking it.
+  acceptedById   String?
+  acceptedBy     User?        @relation("OrderAcceptedBy", fields: [acceptedById], references: [id])
+  acceptedAt     DateTime?
+
+  // Whichever waiter actually carried the order to the table — feeds
+  // the "orders served" count on waiter performance reports.
+  servedById     String?
+  servedBy       User?        @relation("OrderServedBy", fields: [servedById], references: [id])
+
+  subtotal       Decimal      @db.Decimal(10, 2) @default(0)
+  taxAmount      Decimal      @db.Decimal(10, 2) @default(0)
+  totalAmount    Decimal      @db.Decimal(10, 2) @default(0)
+
+  placedAt       DateTime     @default(now())
+  readyAt        DateTime?
+  servedAt       DateTime?
+  updatedAt      DateTime     @updatedAt
+
+  items          OrderItem[]
+  payments       Payment[]
+
+  @@index([restaurantId, status])
+  @@index([tableId, status])
+  @@index([diningSessionId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id           String          @id @default(uuid())
+  orderId      String
+  order        Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId   String
+  menuItem     MenuItem        @relation(fields: [menuItemId], references: [id])
+
+  quantity     Int             @default(1)
+  portion      Portion         @default(FULL) // which size was ordered, for items with hasHalfFull
+  unitPrice    Decimal         @db.Decimal(10, 2) // price snapshot at time of order (already reflects portion)
+  notes        String?         // e.g. "Make it spicy", "No onions"
+  status       OrderItemStatus @default(RECEIVED)
+
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  modifiers    OrderItemModifier[]
+
+  @@index([orderId, status])
+  @@map("order_items")
+}
+
+model OrderItemModifier {
+  id               String         @id @default(uuid())
+  orderItemId      String
+  orderItem        OrderItem      @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  modifierOptionId String
+  modifierOption   ModifierOption @relation(fields: [modifierOptionId], references: [id])
+  priceSnapshot    Decimal        @db.Decimal(10, 2)
+
+  @@map("order_item_modifiers")
+}
+
+// =====================================================================
+// BILLING / PAYMENTS / SPLIT BILL
+// =====================================================================
+
+// Describes HOW a dining session's bill is being divided.
+// Created when the customer / waiter chooses "Split Bill".
+model BillSplit {
+  id              String        @id @default(uuid())
+  diningSessionId String
+  diningSession   DiningSession @relation(fields: [diningSessionId], references: [id], onDelete: Cascade)
+
+  splitType       SplitType     @default(FULL)
+  numberOfShares  Int?          // for EQUAL split
+  createdAt       DateTime      @default(now())
+
+  shares          BillSplitShare[]
+
+  @@map("bill_splits")
+}
+
+// One payer's portion within a BillSplit (used for EQUAL and CUSTOM)
+model BillSplitShare {
+  id           String    @id @default(uuid())
+  billSplitId  String
+  billSplit    BillSplit @relation(fields: [billSplitId], references: [id], onDelete: Cascade)
+
+  label        String?   // e.g. "Guest 1", "Alex"
+  amount       Decimal   @db.Decimal(10, 2)
+  paymentId    String?   @unique
+  payment      Payment?  @relation(fields: [paymentId], references: [id])
+
+  @@map("bill_split_shares")
+}
+
+model Payment {
+  id           String        @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // A payment is scoped to a DiningSession (the whole sitting/bill) since
+  // split-bill checkout can span multiple orders placed during that
+  // sitting. `orderId` is kept for the narrower case of paying a single
+  // order directly and is optional.
+  orderId      String?
+  order        Order?        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  diningSessionId String?
+  diningSession   DiningSession? @relation(fields: [diningSessionId], references: [id], onDelete: Cascade)
+
+  method       PaymentMethod
+  status       PaymentStatus @default(PENDING)
+  amount       Decimal       @db.Decimal(10, 2)
+  currency     String        @default("INR")
+
+  // Accountability: whichever staff member (Waiter, Manager, or Owner)
+  // confirmed cash-in-hand is recorded here — surfaced to the Owner as
+  // "Waiter A collected ₹500 in cash".
+  collectedById String?
+  collectedBy   User?        @relation("PaymentCollectedBy", fields: [collectedById], references: [id])
+
+  providerRef  String?       // Stripe/Razorpay payment intent / order id (unused while cash-only)
+  paidAt       DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  billSplitShare BillSplitShare?
+
+  @@index([orderId, status])
+  @@index([diningSessionId, status])
+  @@map("payments")
+}
+
+// =====================================================================
+// WAITER CALLS / NOTIFICATIONS
+// =====================================================================
+
+model WaiterCall {
+  id           String          @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableId      String
+  table        RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  type         WaiterCallType  @default(CALL_WAITER)
+  status       WaiterCallStatus @default(PENDING)
+
+  acknowledgedById String?
+  acknowledgedBy   User?       @relation("AcknowledgedByWaiter", fields: [acknowledgedById], references: [id])
+
+  createdAt    DateTime        @default(now())
+  resolvedAt   DateTime?
+
+  @@index([restaurantId, status])
+  @@map("waiter_calls")
+}
