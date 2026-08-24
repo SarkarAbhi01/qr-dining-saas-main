@@ -40,4 +40,7 @@ export const superadminApi = {
   createPlan: (payload) => api.post('/superadmin/plans', payload).then((r) => r.data.data),
 
   updatePlan: (id, payload) => api.patch(`/superadmin/plans/${id}`, payload).then((r) => r.data.data),
+  
+  restaurantRevenueReport: (days) =>
+    api.get('/superadmin/reports/restaurant-revenue', { params: { days } }).then((r) => r.data.data),
 };
