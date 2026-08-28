@@ -3,19 +3,21 @@ import { useAuthStore } from '@/store/authStore';
 
 
 // For Local
-/*
+
 const api = axios.create({
   baseURL: '/api',
   headers: { 'Content-Type': 'application/json' },
 });
-*/
+
 
 
 // For Production
+/*
 const api = axios.create({
   baseURL: `${import.meta.env.VITE_API_URL}/api`,
   headers: { 'Content-Type': 'application/json' },
 });
+*/
 
 // Attach access token to every request
 api.interceptors.request.use((config) => {

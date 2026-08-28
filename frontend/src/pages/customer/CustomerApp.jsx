@@ -61,6 +61,19 @@ export default function CustomerApp() {
     }
   }
 
+  // Restaurant-specific overrides for the shared --customer-* variables
+  // (see index.css). Only present once `context` has loaded; falls back
+  // to `{}` beforehand so nothing breaks pre-load.
+  const theme = context?.restaurant?.theme || {};
+  const themeStyle = {
+    '--customer-body': theme.bodyColor || undefined,
+    '--customer-header': theme.headerColor || undefined,
+    '--customer-menu': theme.menuColor || undefined,
+    '--customer-menu-hover': theme.hoverColor || undefined,
+    '--customer-font': theme.fontFamily ? `'${theme.fontFamily}', var(--font-sans)` : undefined,
+    '--customer-font-size': theme.fontSize ? `${theme.fontSize}px` : undefined,
+  };
+
   if (error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-2 text-center px-6 bg-paper">
@@ -80,8 +93,11 @@ export default function CustomerApp() {
 
   if (sessionClosed || context.session.status === 'CLOSED') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-center px-6 bg-paper">
-        <QrCode size={40} className="text-saffron-dark" />
+      <div
+        className="min-h-screen flex flex-col items-center justify-center gap-3 text-center px-6"
+        style={{ ...themeStyle, backgroundColor: 'var(--customer-body)', fontFamily: 'var(--customer-font)', fontSize: 'var(--customer-font-size)' }}
+      >
+        <QrCode size={40} className="customer-menu-accent" />
         <h2 className="font-display text-2xl text-ink">Your bill is settled</h2>
         <p className="text-slate text-sm max-w-xs">
           Aapka bill generate ho chuka hai. Ab aapko dubara QR scan karna hoga to start a new order.
@@ -91,7 +107,7 @@ export default function CustomerApp() {
 
         <button
           onClick={() => setFeedbackOpen(true)}
-          className="fixed bottom-6 right-6 flex items-center gap-2 bg-ink text-paper rounded-full shadow-lg px-4 py-3 text-sm font-medium"
+          className="customer-menu-btn fixed bottom-6 right-6 flex items-center gap-2 rounded-full shadow-lg px-4 py-3 text-sm font-medium"
         >
           <MessageSquarePlus size={16} /> Feedback / Complaint
         </button>
@@ -105,9 +121,15 @@ export default function CustomerApp() {
   }
 
   return (
-    <div className="min-h-screen bg-paper">
-      <header className="sticky top-0 z-10 bg-white border-b border-line px-4 py-3">
-        <p className="font-mono text-[10px] tracking-widest text-saffron-dark uppercase">
+    <div
+      className="min-h-screen"
+      style={{ ...themeStyle, backgroundColor: 'var(--customer-body)', fontFamily: 'var(--customer-font)', fontSize: 'var(--customer-font-size)' }}
+    >
+      <header
+        className="sticky top-0 z-10 border-b border-line px-4 py-3"
+        style={{ backgroundColor: 'var(--customer-header)' }}
+      >
+        <p className="font-mono text-[10px] tracking-widest customer-menu-accent uppercase">
           {context.restaurant.name}
         </p>
         <h1 className="font-display text-lg text-ink leading-tight">Table {context.table.tableNumber}</h1>

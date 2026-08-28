@@ -100,7 +100,7 @@ export default function Reports() {
                 key={opt.value}
                 onClick={() => setRange(opt.value)}
                 className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
-                  range === opt.value ? 'bg-ink text-paper' : 'text-slate hover:bg-paper-dim'
+                  range === opt.value ? 'staff-menu-active' : 'text-slate hover:bg-paper-dim'
                 }`}
               >
                 {opt.label}

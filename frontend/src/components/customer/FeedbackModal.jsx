@@ -49,7 +49,7 @@ export default function FeedbackModal({ open, onClose, sessionId }) {
         </p>
         <button
           onClick={handleClose}
-          className="mt-4 w-full bg-ink text-paper rounded px-3 py-2.5 text-sm font-medium"
+          className="customer-menu-btn mt-4 w-full rounded px-3 py-2.5 text-sm font-medium"
         >
           Close
         </button>
@@ -107,7 +107,7 @@ export default function FeedbackModal({ open, onClose, sessionId }) {
       <button
         onClick={handleSubmit}
         disabled={submitting}
-        className="w-full bg-ink text-paper rounded px-3 py-2.5 text-sm font-medium disabled:opacity-50"
+        className="customer-menu-btn w-full rounded px-3 py-2.5 text-sm font-medium disabled:opacity-50"
       >
         {submitting ? 'Sending…' : `Send ${type === 'COMPLAINT' ? 'complaint' : 'feedback'}`}
       </button>

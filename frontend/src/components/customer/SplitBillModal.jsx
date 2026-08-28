@@ -119,7 +119,7 @@ export default function SplitBillModal({ open, onClose, sessionId, total, onSpli
       <button
         onClick={handleConfirm}
         disabled={submitting || !canConfirm}
-        className="w-full bg-ink text-paper rounded px-3 py-2.5 text-sm font-medium disabled:opacity-50"
+        className="customer-menu-btn w-full rounded px-3 py-2.5 text-sm font-medium disabled:opacity-50"
       >
         {submitting ? 'Confirming…' : 'Confirm split'}
       </button>

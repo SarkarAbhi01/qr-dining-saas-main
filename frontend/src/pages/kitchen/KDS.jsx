@@ -8,6 +8,7 @@ import { useSocket } from '@/sockets/useSocket';
 import { disconnectSocket } from '@/sockets/socketClient';
 import { useAuthStore } from '@/store/authStore';
 import { playNotificationSound, isSoundEnabled, setSoundEnabled } from '@/utils/sound';
+import { useRestaurantTheme } from '@/hooks/useRestaurantTheme';
 
 const ACTIVE_STATUSES = ['PENDING', 'PREPARING', 'READY'];
 
@@ -40,6 +41,7 @@ export default function KDS() {
   const [stats, setStats] = useState(null);
   const [myStats, setMyStats] = useState(null);
   const logout = useAuthStore((s) => s.logout);
+  const { style: themeStyle } = useRestaurantTheme();
 
   const loadStats = useCallback(() => {
     kdsApi.todayStats().then(setStats).catch(() => {});
@@ -127,7 +129,19 @@ export default function KDS() {
   );
 
   return (
-    <div className="min-h-screen bg-ink text-paper">
+    <div
+      className="min-h-screen bg-ink text-paper"
+      style={{
+        // Font follows the Owner's theme like every other dashboard.
+        // Background intentionally stays the fixed dark "ink" theme
+        // regardless of what color the Owner sets — this is a
+        // distraction-free, high-contrast display meant to be read at
+        // a glance in a working kitchen, and a Owner-picked light or
+        // dark "body color" here could easily wreck that contrast.
+        fontFamily: themeStyle['--staff-font'],
+        fontSize: themeStyle['--staff-font-size'],
+      }}
+    >
       <header className="flex items-center justify-between px-6 py-4 border-b border-white/10">
         <div className="flex items-center gap-2">
           <Flame size={20} className="text-saffron" />

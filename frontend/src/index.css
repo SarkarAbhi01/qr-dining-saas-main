@@ -75,6 +75,81 @@ body {
   outline-offset: 2px;
 }
 
+/* =====================================================================
+   Customer-side dynamic theming
+   Rationale: Owners can set a body/header/menu/hover color and a font
+   per restaurant (Owner > Settings > Theme), applied live on the
+   customer-facing menu. Rather than repurpose --color-ink (also the
+   body text color — overriding it would break text everywhere, not
+   just buttons), these are dedicated variables the Owner theme
+   actually targets. Defaults exactly match the product's existing
+   look, so a restaurant that hasn't customized anything is unaffected.
+   CustomerApp.jsx overrides these inline, scoped to its own subtree,
+   from the restaurant's saved themeConfig.
+   ===================================================================== */
+:root {
+  --customer-body: var(--color-paper);
+  --customer-header: #ffffff;
+  --customer-menu: var(--color-ink);
+  --customer-menu-hover: var(--color-ink-soft);
+  --customer-font: var(--font-sans);
+  --customer-font-size: 16px;
+}
+
+.customer-menu-btn {
+  background-color: var(--customer-menu);
+  color: var(--customer-body);
+  transition: background-color 150ms ease;
+}
+.customer-menu-btn:hover:not(:disabled) {
+  background-color: var(--customer-menu-hover);
+}
+
+.customer-menu-chip-active {
+  background-color: var(--customer-menu);
+  color: var(--customer-body);
+}
+
+.customer-menu-accent {
+  color: var(--customer-menu);
+}
+
+/* =====================================================================
+   Staff-side dynamic theming (Owner, Manager, Chef, Waiter dashboards)
+   Same rationale and mechanism as the customer-side block above, kept
+   as a SEPARATE variable/class set on purpose — so extending theming
+   to staff dashboards can never regress the already-working customer
+   theme. Applied by layouts/DashboardShell.jsx (covers Owner + Manager
+   + Waiter, who all share that shell) and pages/kitchen/KDS.jsx (Chef,
+   which uses its own standalone layout).
+   ===================================================================== */
+:root {
+  --staff-body: var(--color-paper);
+  --staff-header: #ffffff;
+  --staff-menu: var(--color-ink);
+  --staff-menu-hover: var(--color-ink-soft);
+  --staff-font: var(--font-sans);
+  --staff-font-size: 16px;
+}
+
+.staff-menu-btn {
+  background-color: var(--staff-menu);
+  color: var(--staff-body);
+  transition: background-color 150ms ease;
+}
+.staff-menu-btn:hover:not(:disabled) {
+  background-color: var(--staff-menu-hover);
+}
+
+.staff-menu-active {
+  background-color: var(--staff-menu) !important;
+  color: var(--staff-body) !important;
+}
+
+.staff-menu-accent {
+  color: var(--staff-menu);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

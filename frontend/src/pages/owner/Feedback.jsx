@@ -51,7 +51,7 @@ export default function Feedback() {
             key={v}
             onClick={() => setMinRating(v)}
             className={`text-xs font-medium px-3 py-1.5 rounded-full border ${
-              minRating === v ? 'bg-ink text-paper border-ink' : 'border-line text-slate'
+              minRating === v ? 'staff-menu-active border-transparent' : 'border-line text-slate'
             }`}
           >
             {v === '' ? 'All' : `${v}★ and up`}

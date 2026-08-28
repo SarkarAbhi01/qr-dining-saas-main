@@ -7,16 +7,24 @@ import api from '@/api/client';
 import { useAuthStore } from '@/store/authStore';
 import { disconnectSocket } from '@/sockets/socketClient';
 import { isSoundEnabled, setSoundEnabled } from '@/utils/sound';
+import { useRestaurantTheme } from '@/hooks/useRestaurantTheme';
 
 /**
  * `navItems`: [{ to, label, icon: LucideIcon }]
  * Renders a fixed left sidebar on desktop (>= md) and a fixed bottom
  * tab bar on mobile — per the brief's navigation requirement.
+ *
+ * Shared by Owner, Manager, and Waiter dashboards (and Superadmin,
+ * which is exempt from restaurant theming — see useRestaurantTheme),
+ * so applying the Owner-set theme here is what makes it show up
+ * consistently across all of those logins, not just the sidebar of
+ * whichever one happens to render it first.
  */
 export default function DashboardShell({ title, navItems, children }) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const [soundOn, setSoundOn] = useState(isSoundEnabled());
+  const { style: themeStyle } = useRestaurantTheme();
 
   function toggleSound() {
     const next = !soundOn;
@@ -39,12 +47,23 @@ export default function DashboardShell({ title, navItems, children }) {
   }
 
   return (
-    <div className="min-h-screen bg-paper flex">
+    <div
+      className="min-h-screen flex"
+      style={{
+        ...themeStyle,
+        backgroundColor: 'var(--staff-body)',
+        fontFamily: 'var(--staff-font)',
+        fontSize: 'var(--staff-font-size)',
+      }}
+    >
       {/* --- Desktop sidebar --- */}
-      <aside className="hidden md:flex md:flex-col w-60 shrink-0 border-r border-line bg-white h-screen sticky top-0">
+      <aside
+        className="hidden md:flex md:flex-col w-60 shrink-0 border-r border-line h-screen sticky top-0"
+        style={{ backgroundColor: 'var(--staff-header)' }}
+      >
         <div className="px-5 py-5 border-b border-line flex items-start justify-between">
           <div>
-            <p className="font-mono text-[10px] tracking-widest text-saffron-dark uppercase">
+            <p className="font-mono text-[10px] tracking-widest staff-menu-accent uppercase">
               QR Dining
             </p>
             <h2 className="font-display text-lg text-ink leading-tight">{title}</h2>
@@ -67,7 +86,7 @@ export default function DashboardShell({ title, navItems, children }) {
               className={({ isActive }) =>
                 `flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-ink text-paper'
+                    ? 'staff-menu-active'
                     : 'text-ink/70 hover:bg-paper-dim hover:text-ink'
                 }`
               }
@@ -92,7 +111,10 @@ export default function DashboardShell({ title, navItems, children }) {
 
       {/* --- Main content --- */}
       <main className="flex-1 min-w-0 pb-20 md:pb-0">
-        <header className="md:hidden sticky top-0 z-10 bg-white border-b border-line px-4 py-3 flex items-center justify-between">
+        <header
+          className="md:hidden sticky top-0 z-10 border-b border-line px-4 py-3 flex items-center justify-between"
+          style={{ backgroundColor: 'var(--staff-header)' }}
+        >
           <h2 className="font-display text-lg text-ink">{title}</h2>
           <div className="flex items-center gap-3">
             <button onClick={toggleSound} className="text-slate" title="Toggle alert sounds">
@@ -110,7 +132,10 @@ export default function DashboardShell({ title, navItems, children }) {
       {/* Scrolls horizontally rather than squeezing every tab to fit,
           since some dashboards (Owner) now have more items than a phone
           screen can show at readable size. */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-line flex items-stretch overflow-x-auto z-20">
+      <nav
+        className="md:hidden fixed bottom-0 inset-x-0 border-t border-line flex items-stretch overflow-x-auto z-20"
+        style={{ backgroundColor: 'var(--staff-header)' }}
+      >
         {navItems.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
@@ -118,7 +143,7 @@ export default function DashboardShell({ title, navItems, children }) {
             end
             className={({ isActive }) =>
               `shrink-0 w-16 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-medium ${
-                isActive ? 'text-saffron-dark' : 'text-slate'
+                isActive ? 'staff-menu-accent' : 'text-slate'
               }`
             }
           >

@@ -50,13 +50,16 @@ export default function Menu() {
   return (
     <div className="pb-24">
       {/* Category tabs */}
-      <div className="sticky top-[57px] z-10 bg-paper border-b border-line px-4 py-2 flex gap-2 overflow-x-auto">
+      <div
+        className="sticky top-[57px] z-10 border-b border-line px-4 py-2 flex gap-2 overflow-x-auto"
+        style={{ backgroundColor: 'var(--customer-body)' }}
+      >
         {categories.map((c) => (
           <button
             key={c.id}
             onClick={() => setActiveCategory(c.id)}
             className={`shrink-0 text-sm font-medium px-3 py-1.5 rounded-full transition-colors ${
-              activeCategory === c.id ? 'bg-ink text-paper' : 'bg-white border border-line text-ink'
+              activeCategory === c.id ? 'customer-menu-chip-active' : 'bg-white border border-line text-ink'
             }`}
           >
             {c.name}
@@ -94,7 +97,7 @@ export default function Menu() {
                   )}
                   <button
                     onClick={() => quickAdd(item)}
-                    className="flex items-center gap-1 text-xs font-medium bg-ink text-paper rounded-full px-3 py-1.5"
+                    className="customer-menu-btn flex items-center gap-1 text-xs font-medium rounded-full px-3 py-1.5"
                   >
                     <Plus size={12} /> Add
                   </button>
@@ -109,7 +112,7 @@ export default function Menu() {
       {count > 0 && (
         <Link
           to="cart"
-          className="fixed bottom-4 inset-x-4 bg-ink text-paper rounded-ticket shadow-lg px-5 py-3.5 flex items-center justify-between"
+          className="customer-menu-btn fixed bottom-4 inset-x-4 rounded-ticket shadow-lg px-5 py-3.5 flex items-center justify-between"
         >
           <span className="flex items-center gap-2 text-sm font-medium">
             <ShoppingBag size={16} /> {count} item{count > 1 ? 's' : ''}

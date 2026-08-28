@@ -119,7 +119,7 @@ export default function Staff() {
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-1.5 bg-ink text-paper rounded px-4 py-2 text-sm font-medium hover:bg-ink-soft transition-colors"
+          className="staff-menu-btn flex items-center gap-1.5 rounded px-4 py-2 text-sm font-medium transition-colors"
         >
           <Plus size={16} /> Add staff
         </button>
@@ -241,7 +241,7 @@ export default function Staff() {
               <option value="MANAGER">Manager</option>
             </select>
           </div>
-          <button type="submit" className="w-full bg-ink text-paper rounded px-3 py-2.5 text-sm font-medium">
+          <button type="submit" className="staff-menu-btn w-full rounded px-3 py-2.5 text-sm font-medium">
             {editTarget ? 'Save changes' : 'Create account'}
           </button>
         </form>

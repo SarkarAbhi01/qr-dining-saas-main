@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Bell, Receipt, CheckCircle2, Banknote, PartyPopper } from 'lucide-react';
+import { ArrowLeft, Bell, Receipt, CheckCircle2, Banknote, CreditCard, PartyPopper } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import { customerApi } from '@/api/customer';
@@ -23,7 +23,8 @@ export default function OrderTracking() {
   const [splitOpen, setSplitOpen] = useState(false);
   const [splitResult, setSplitResult] = useState(null);
   const [checkoutRequested, setCheckoutRequested] = useState(false);
-  const [checkingOut, setCheckingOut] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false); // 'cash' | 'online' | false
+  const [onlineAvailable, setOnlineAvailable] = useState(null); // null = not checked yet
 
   async function load() {
     try {
@@ -42,6 +43,15 @@ export default function OrderTracking() {
     const interval = setInterval(load, 8000); // poll for kitchen status + payment updates
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Checked once up front so the "Pay Online" button can show its
+  // actual state immediately rather than only failing after a tap.
+  useEffect(() => {
+    customerApi
+      .getPaymentConfig()
+      .then((cfg) => setOnlineAvailable(cfg.onlineAvailable))
+      .catch(() => setOnlineAvailable(false));
   }, []);
 
   async function handleCallWaiter() {
@@ -69,7 +79,7 @@ export default function OrderTracking() {
   }
 
   async function handlePayCash() {
-    setCheckingOut(true);
+    setCheckingOut('cash');
     try {
       await customerApi.checkoutCash(session.id);
       setCheckoutRequested(true);
@@ -77,6 +87,21 @@ export default function OrderTracking() {
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to start checkout');
     } finally {
+      setCheckingOut(false);
+    }
+  }
+
+  async function handlePayOnline() {
+    if (!onlineAvailable) {
+      toast.error('Online payment isn\'t available right now — please pay with cash.');
+      return;
+    }
+    setCheckingOut('online');
+    try {
+      const { checkoutUrl } = await customerApi.checkoutOnline(session.id);
+      window.location.href = checkoutUrl; // hand off to Stripe's hosted checkout page
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to start online checkout');
       setCheckingOut(false);
     }
   }
@@ -98,7 +123,7 @@ export default function OrderTracking() {
   const billRequested = session.status === 'BILL_REQUESTED';
 
   return (
-    <div className="pb-28">
+    <div className="pb-36">
       <div className="px-4 py-3">
         <Link to="../" className="inline-flex items-center gap-1 text-sm text-slate">
           <ArrowLeft size={14} /> Back to menu
@@ -143,8 +168,8 @@ export default function OrderTracking() {
           <div className="flex items-start gap-2 bg-basil-soft border border-basil/20 rounded-ticket p-4">
             <CheckCircle2 className="text-basil shrink-0 mt-0.5" size={16} />
             <p className="text-sm text-ink">
-              Split confirmed ({splitResult.splitType.toLowerCase()}) — pay each share in cash when your
-              waiter arrives.
+              Split confirmed ({splitResult.splitType.toLowerCase()}) — pay each share when your waiter
+              arrives, or online for the full remaining amount.
             </p>
           </div>
         )}
@@ -160,36 +185,61 @@ export default function OrderTracking() {
       </div>
 
       {orders.length > 0 && !checkoutRequested && (
-        <div className="fixed bottom-0 inset-x-0 bg-white border-t border-line px-4 py-3 flex gap-2">
-          <button
-            onClick={handleCallWaiter}
-            className="flex-1 flex items-center justify-center gap-1.5 border border-line rounded-ticket px-3 py-3 text-sm font-medium"
-          >
-            <Bell size={15} /> Call waiter
-          </button>
+        <div className="fixed bottom-0 inset-x-0 bg-white border-t border-line px-4 py-3 space-y-2">
           {billRequested ? (
             <>
-              <button
-                onClick={() => setSplitOpen(true)}
-                className="flex-1 flex items-center justify-center gap-1.5 border border-line rounded-ticket px-3 py-3 text-sm font-medium"
-              >
-                <Receipt size={15} /> Split
-              </button>
-              <button
-                onClick={handlePayCash}
-                disabled={checkingOut}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-ink text-paper rounded-ticket px-3 py-3 text-sm font-medium disabled:opacity-50"
-              >
-                <Banknote size={15} /> {checkingOut ? 'Please wait…' : 'Pay cash'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCallWaiter}
+                  className="flex-1 flex items-center justify-center gap-1.5 border border-line rounded-ticket px-3 py-2.5 text-sm font-medium"
+                >
+                  <Bell size={15} /> Call waiter
+                </button>
+                <button
+                  onClick={() => setSplitOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 border border-line rounded-ticket px-3 py-2.5 text-sm font-medium"
+                >
+                  <Receipt size={15} /> Split bill
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handlePayCash}
+                  disabled={!!checkingOut}
+                  className="flex-1 flex items-center justify-center gap-1.5 border border-ink rounded-ticket px-3 py-3 text-sm font-medium disabled:opacity-50"
+                >
+                  <Banknote size={15} /> {checkingOut === 'cash' ? 'Please wait…' : 'Pay cash'}
+                </button>
+                <button
+                  onClick={handlePayOnline}
+                  disabled={!!checkingOut || onlineAvailable === false}
+                  title={onlineAvailable === false ? "Online payment isn't set up for this restaurant yet" : undefined}
+                  className="customer-menu-btn flex-1 flex items-center justify-center gap-1.5 rounded-ticket px-3 py-3 text-sm font-medium disabled:opacity-40"
+                >
+                  <CreditCard size={15} />
+                  {checkingOut === 'online'
+                    ? 'Redirecting…'
+                    : onlineAvailable === false
+                    ? 'Pay online (unavailable)'
+                    : 'Pay online'}
+                </button>
+              </div>
             </>
           ) : (
-            <button
-              onClick={handleRequestBill}
-              className="flex-1 flex items-center justify-center gap-1.5 bg-ink text-paper rounded-ticket px-3 py-3 text-sm font-medium"
-            >
-              <Receipt size={15} /> Request bill
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleCallWaiter}
+                className="flex-1 flex items-center justify-center gap-1.5 border border-line rounded-ticket px-3 py-3 text-sm font-medium"
+              >
+                <Bell size={15} /> Call waiter
+              </button>
+              <button
+                onClick={handleRequestBill}
+                className="customer-menu-btn flex-1 flex items-center justify-center gap-1.5 rounded-ticket px-3 py-3 text-sm font-medium"
+              >
+                <Receipt size={15} /> Request bill
+              </button>
+            </div>
           )}
         </div>
       )}

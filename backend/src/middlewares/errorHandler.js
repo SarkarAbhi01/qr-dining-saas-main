@@ -42,6 +42,21 @@ function errorHandler(err, req, res, next) {
     return res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
 
+  // Thrown when a query references a field/model the currently-generated
+  // Prisma Client doesn't know about yet — almost always means the
+  // schema changed (e.g. a new column was added) but `prisma migrate
+  // dev` / `prisma generate` hasn't been run since. Surfaced explicitly
+  // because otherwise this is indistinguishable from "the feature just
+  // doesn't work" from the client's point of view.
+  if (err.name === 'PrismaClientValidationError') {
+    console.error('⚠️  Possible schema/client mismatch — run `npx prisma migrate dev` and restart the server.');
+    return res.status(500).json({
+      success: false,
+      message:
+        'Server database schema is out of date. Run `npx prisma migrate dev` on the backend and restart it.',
+    });
+  }
+
   return res.status(500).json({
     success: false,
     message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,

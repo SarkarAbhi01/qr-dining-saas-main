@@ -118,7 +118,7 @@ export default function Menu() {
             <div
               key={c.id}
               className={`group flex items-center gap-1 rounded px-2 py-1.5 cursor-pointer text-sm ${
-                activeCategory === c.id ? 'bg-ink text-paper' : 'hover:bg-paper-dim text-ink'
+                activeCategory === c.id ? 'staff-menu-active' : 'hover:bg-paper-dim text-ink'
               }`}
               onClick={() => setActiveCategory(c.id)}
             >
@@ -154,7 +154,7 @@ export default function Menu() {
           <button
             onClick={() => { setEditingItem(null); setItemModalOpen(true); }}
             disabled={!categories.length}
-            className="flex items-center gap-1.5 bg-ink text-paper rounded px-4 py-2 text-sm font-medium hover:bg-ink-soft transition-colors disabled:opacity-50"
+            className="staff-menu-btn flex items-center gap-1.5 rounded px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
           >
             <Plus size={16} /> Add item
           </button>
@@ -228,7 +228,7 @@ export default function Menu() {
             placeholder="e.g. Starters, Mains, Desserts"
             className="w-full border border-line rounded px-3 py-2 text-sm"
           />
-          <button type="submit" className="w-full bg-ink text-paper rounded px-3 py-2.5 text-sm font-medium">
+          <button type="submit" className="staff-menu-btn w-full rounded px-3 py-2.5 text-sm font-medium">
             Add category
           </button>
         </form>

@@ -10,6 +10,7 @@ router.use('/superadmin', require('./superadmin.routes'));
 // reach these sub-routers and their own (different) role gates.
 router.use('/restaurant/kds', require('./kds.routes'));
 router.use('/restaurant/waiter', require('./waiter.routes'));
+router.use('/restaurant/theme', require('./theme.routes'));
 router.use('/restaurant', require('./restaurant.routes'));
 router.use('/customer', require('./customer.routes'));
 

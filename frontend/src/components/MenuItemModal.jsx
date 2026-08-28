@@ -186,7 +186,7 @@ export default function MenuItemModal({ open, onClose, categories, editingItem, 
                 type="button"
                 onClick={() => setForm((f) => ({ ...f, type: t.value }))}
                 className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-                  form.type === t.value ? 'bg-ink text-paper border-ink' : 'border-line text-slate hover:border-ink'
+                  form.type === t.value ? 'staff-menu-active border-transparent' : 'border-line text-slate hover:border-ink'
                 }`}
               >
                 {t.label}
@@ -198,7 +198,7 @@ export default function MenuItemModal({ open, onClose, categories, editingItem, 
         <button
           type="submit"
           disabled={submitting || !form.categoryId}
-          className="w-full bg-ink text-paper rounded px-3 py-2.5 text-sm font-medium hover:bg-ink-soft transition-colors disabled:opacity-50"
+          className="staff-menu-btn w-full rounded px-3 py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
         >
           {submitting ? 'Saving…' : editingItem ? 'Save changes' : 'Add item'}
         </button>

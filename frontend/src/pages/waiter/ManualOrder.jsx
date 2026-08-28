@@ -87,7 +87,7 @@ export default function ManualOrder() {
                     <span className="w-5 text-center text-sm font-mono">{qty}</span>
                     <button
                       onClick={() => adjustQty(item, 1)}
-                      className="w-7 h-7 rounded-full bg-ink text-paper flex items-center justify-center"
+                      className="staff-menu-btn w-7 h-7 rounded-full flex items-center justify-center"
                     >
                       <Plus size={13} />
                     </button>
@@ -108,7 +108,7 @@ export default function ManualOrder() {
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="bg-ink text-paper rounded px-5 py-2.5 text-sm font-medium disabled:opacity-50"
+            className="staff-menu-btn rounded px-5 py-2.5 text-sm font-medium disabled:opacity-50"
           >
             {submitting ? 'Sending…' : 'Send to kitchen'}
           </button>

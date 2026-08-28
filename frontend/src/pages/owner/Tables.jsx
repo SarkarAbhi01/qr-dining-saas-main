@@ -159,7 +159,7 @@ export default function Tables() {
           </button>
           <button
             onClick={() => setSingleOpen(true)}
-            className="flex items-center gap-1.5 bg-ink text-paper rounded px-4 py-2 text-sm font-medium hover:bg-ink-soft transition-colors"
+            className="staff-menu-btn flex items-center gap-1.5 rounded px-4 py-2 text-sm font-medium transition-colors"
           >
             <Plus size={16} /> Add table
           </button>
@@ -198,7 +198,7 @@ export default function Tables() {
               className="w-full border border-line rounded px-3 py-2 text-sm"
             />
           </div>
-          <button type="submit" className="w-full bg-ink text-paper rounded px-3 py-2.5 text-sm font-medium">
+          <button type="submit" className="staff-menu-btn w-full rounded px-3 py-2.5 text-sm font-medium">
             Create table &amp; generate QR
           </button>
         </form>
@@ -252,7 +252,7 @@ export default function Tables() {
             Will create {bulkForm.prefix}{bulkForm.startAt} through {bulkForm.prefix}
             {bulkForm.startAt + bulkForm.count - 1}.
           </p>
-          <button type="submit" className="w-full bg-ink text-paper rounded px-3 py-2.5 text-sm font-medium">
+          <button type="submit" className="staff-menu-btn w-full rounded px-3 py-2.5 text-sm font-medium">
             Generate {bulkForm.count} tables
           </button>
         </form>

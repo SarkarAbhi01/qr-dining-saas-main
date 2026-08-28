@@ -161,7 +161,7 @@ export default function ItemModal({ open, onClose, item }) {
       <button
         onClick={handleAdd}
         disabled={!canAdd}
-        className="w-full bg-ink text-paper rounded px-3 py-3 text-sm font-medium disabled:opacity-50"
+        className="customer-menu-btn w-full rounded px-3 py-3 text-sm font-medium disabled:opacity-50"
       >
         Add {quantity} to cart · ₹{(unitPrice * quantity).toFixed(2)}
       </button>

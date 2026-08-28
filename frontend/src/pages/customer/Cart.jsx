@@ -105,7 +105,7 @@ export default function Cart() {
           <button
             onClick={handlePlaceOrder}
             disabled={placing || billRequested}
-            className="w-full bg-ink text-paper rounded-ticket px-4 py-3.5 text-sm font-medium disabled:opacity-50"
+            className="customer-menu-btn w-full rounded-ticket px-4 py-3.5 text-sm font-medium disabled:opacity-50"
           >
             {placing ? 'Placing order…' : 'Place order'}
           </button>
