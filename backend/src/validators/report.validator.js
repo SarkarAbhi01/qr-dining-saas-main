@@ -13,4 +13,8 @@ const paymentsCollected = Joi.object({
   range: Joi.string().valid('7d', '30d', '90d', 'all').default('30d'),
 });
 
-module.exports = { revenueSeries, topItems, paymentsCollected };
+const revenueByMethod = Joi.object({
+  range: Joi.string().valid('7d', '30d', '90d', 'all').default('30d'),
+});
+
+module.exports = { revenueSeries, topItems, paymentsCollected, revenueByMethod };

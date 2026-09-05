@@ -21,6 +21,26 @@ const RANGE_OPTIONS = [
   { value: '12m', label: '12 months' },
 ];
 
+const METHOD_LABEL = {
+  CASH: 'Cash',
+  UPI: 'UPI',
+  CARD: 'Card',
+  STRIPE: 'Online (Card)',
+  RAZORPAY: 'Online (Razorpay)',
+  WALLET: 'Wallet',
+  OTHER: 'Other',
+};
+
+const METHOD_COLOR = {
+  CASH: 'bg-basil',
+  UPI: 'bg-cobalt',
+  CARD: 'bg-saffron',
+  STRIPE: 'bg-saffron',
+  RAZORPAY: 'bg-saffron',
+  WALLET: 'bg-chili',
+  OTHER: 'bg-slate',
+};
+
 function formatBucketLabel(dateStr, range) {
   const d = new Date(dateStr);
   return range === '12m'
@@ -37,6 +57,7 @@ export default function Reports() {
   const [staff, setStaff] = useState([]);
   const [chefs, setChefs] = useState([]);
   const [payments, setPayments] = useState({ summary: [], recent: [] });
+  const [methodBreakdown, setMethodBreakdown] = useState({ breakdown: [], totalRevenue: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -50,8 +71,9 @@ export default function Reports() {
       reportsApi.staffPerformance(),
       reportsApi.chefPerformance(reportRange),
       reportsApi.paymentsCollected(reportRange),
+      reportsApi.revenueByMethod(reportRange),
     ])
-      .then(([ov, rev, items, hours, staffData, chefData, paymentsData]) => {
+      .then(([ov, rev, items, hours, staffData, chefData, paymentsData, methodData]) => {
         setOverview(ov);
         setRevenue(rev);
         setTopItems(items);
@@ -59,6 +81,7 @@ export default function Reports() {
         setStaff(staffData);
         setChefs(chefData.summary);
         setPayments(paymentsData);
+        setMethodBreakdown(methodData);
       })
       .catch(() => toast.error('Failed to load reports'))
       .finally(() => setLoading(false));
@@ -248,6 +271,36 @@ export default function Reports() {
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+
+      {/* --- Revenue by payment method --- */}
+      <div className="ticket-edge bg-white border border-line rounded-ticket p-5 mt-2 mb-6">
+        <p className="text-xs font-semibold text-slate uppercase tracking-wide mb-4">
+          Revenue by Payment Method
+        </p>
+        {methodBreakdown.breakdown.length === 0 ? (
+          <p className="text-sm text-slate">No payments confirmed in this period.</p>
+        ) : (
+          <div className="space-y-3">
+            {methodBreakdown.breakdown.map((m) => (
+              <div key={m.method}>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-ink font-medium">{METHOD_LABEL[m.method] || m.method}</span>
+                  <span className="font-mono text-xs text-slate">
+                    ₹{m.revenue.toLocaleString()} · {m.paymentCount} payment{m.paymentCount === 1 ? '' : 's'} ·{' '}
+                    {m.percentOfTotal}%
+                  </span>
+                </div>
+                <div className="h-1.5 bg-paper-dim rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${METHOD_COLOR[m.method] || 'bg-ink'}`}
+                    style={{ width: `${m.percentOfTotal}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

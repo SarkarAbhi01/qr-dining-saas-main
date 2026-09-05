@@ -81,6 +81,11 @@ router.get(
   validate(reportSchemas.paymentsCollected, 'query'),
   reportController.paymentsCollected
 );
+router.get(
+  '/reports/revenue-by-method',
+  validate(reportSchemas.revenueByMethod, 'query'),
+  reportController.revenueByMethod
+);
 
 // --- Feedback ---
 router.get('/feedback', feedbackController.listFeedback);

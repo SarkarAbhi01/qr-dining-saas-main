@@ -1,7 +1,7 @@
 const prisma = require('../config/prisma');
 const ApiError = require('../utils/ApiError');
 const { isStripeConfigured, getStripeClient } = require('../config/stripe');
-const { markPaymentSucceeded } = require('../services/payment.service');
+const { createPendingPaymentsForSession, markPaymentSucceeded } = require('../services/payment.service');
 
 const TAX_RATE = Number(process.env.TAX_RATE || 0); // e.g. 0.05 for 5%
 
@@ -302,58 +302,9 @@ async function createBillSplit(req, res) {
 }
 
 // ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
 // Checkout — cash (waiter-collected) and online (Stripe, when configured)
 // ---------------------------------------------------------------------
-
-// Resolves (or creates, defaulting to one FULL share) the unpaid
-// portions of a session's bill, and turns each into a PENDING Payment
-// row of the given method. Shared by both checkout paths below so cash
-// and online behave identically up to the point they diverge (waiter
-// collection vs. redirect to Stripe).
-async function createPendingPaymentsForSession(session, method) {
-  const orders = await prisma.order.findMany({ where: { diningSessionId: session.id } });
-  const total = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
-
-  let billSplit = await prisma.billSplit.findFirst({
-    where: { diningSessionId: session.id },
-    orderBy: { createdAt: 'desc' },
-    include: { shares: true },
-  });
-
-  if (!billSplit) {
-    billSplit = await prisma.billSplit.create({
-      data: { diningSessionId: session.id, splitType: 'FULL', shares: { create: [{ label: 'Full bill', amount: total }] } },
-      include: { shares: true },
-    });
-  }
-
-  const unpaidShares = billSplit.shares.filter((s) => !s.paymentId);
-  if (unpaidShares.length === 0) {
-    throw ApiError.conflict('This bill has already been submitted for payment');
-  }
-
-  const payments = await prisma.$transaction(
-    unpaidShares.map((share) =>
-      prisma.payment.create({
-        data: {
-          restaurantId: session.restaurantId,
-          diningSessionId: session.id,
-          method,
-          status: 'PENDING',
-          amount: share.amount,
-        },
-      })
-    )
-  );
-
-  await prisma.$transaction(
-    payments.map((p, i) =>
-      prisma.billSplitShare.update({ where: { id: unpaidShares[i].id }, data: { paymentId: p.id } })
-    )
-  );
-
-  return { payments, total: payments.reduce((sum, p) => sum + Number(p.amount), 0) };
-}
 
 // GET /api/customer/payment-config
 // Lets the frontend know up front whether "Pay Online" should even be

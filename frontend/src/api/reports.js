@@ -12,4 +12,6 @@ export const reportsApi = {
     api.get('/restaurant/reports/chef-performance', { params: { range } }).then((r) => r.data.data),
   paymentsCollected: (range) =>
     api.get('/restaurant/reports/payments-collected', { params: { range } }).then((r) => r.data.data),
+  revenueByMethod: (range) =>
+    api.get('/restaurant/reports/revenue-by-method', { params: { range } }).then((r) => r.data.data),
 };

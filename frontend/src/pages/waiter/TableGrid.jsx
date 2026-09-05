@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
+import { Wallet } from 'lucide-react';
 
 import { waiterApi } from '@/api/waiter';
 import { useSocket } from '@/sockets/useSocket';
+import SettlePaymentModal from '@/components/waiter/SettlePaymentModal';
 
 const STATUS_STYLES = {
   EMPTY: 'bg-basil-soft border-basil text-basil',
@@ -23,6 +25,7 @@ export default function TableGrid() {
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [myStats, setMyStats] = useState(null);
+  const [settleTable, setSettleTable] = useState(null);
 
   const load = useCallback(() => {
     waiterApi
@@ -47,6 +50,7 @@ export default function TableGrid() {
     'waiter-call:update': () => load(),
     'order:new': () => load(),
     'order:update': () => load(),
+    'payment:confirmed': () => load(),
   });
 
   return (
@@ -59,31 +63,57 @@ export default function TableGrid() {
           </span>
         )}
       </div>
-      <p className="text-sm text-slate mb-4">Tap a table to take a manual order.</p>
+      <p className="text-sm text-slate mb-4">
+        Tap a table to take a manual order, or the wallet icon to collect payment.
+      </p>
 
       {loading ? (
         <p className="text-sm text-slate">Loading…</p>
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-          {tables.map((t) => (
-            <Link
-              key={t.id}
-              to={`/waiter/order/${t.id}`}
-              className={`aspect-square rounded-ticket border-2 flex flex-col items-center justify-center gap-1 ${STATUS_STYLES[t.status]}`}
-            >
-              <span className="font-display text-2xl leading-none">{t.tableNumber}</span>
-              <span className="text-[10px] font-medium uppercase tracking-wide">
-                {STATUS_LABEL[t.status]}
-              </span>
-              {t.session?.hasReadyOrder && (
-                <span className="text-[10px] font-semibold bg-basil text-white px-1.5 py-0.5 rounded-full">
-                  Ready
-                </span>
-              )}
-            </Link>
-          ))}
+          {tables.map((t) => {
+            const hasBalance = t.session && Number(t.session.totalAmount) > 0;
+            return (
+              <div key={t.id} className="relative">
+                <Link
+                  to={`/waiter/order/${t.id}`}
+                  className={`aspect-square rounded-ticket border-2 flex flex-col items-center justify-center gap-1 ${STATUS_STYLES[t.status]}`}
+                >
+                  <span className="font-display text-2xl leading-none">{t.tableNumber}</span>
+                  <span className="text-[10px] font-medium uppercase tracking-wide">
+                    {STATUS_LABEL[t.status]}
+                  </span>
+                  {t.session?.hasReadyOrder && (
+                    <span className="text-[10px] font-semibold bg-basil text-white px-1.5 py-0.5 rounded-full">
+                      Ready
+                    </span>
+                  )}
+                </Link>
+                {hasBalance && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setSettleTable(t);
+                    }}
+                    title={`Collect payment — ₹${Number(t.session.totalAmount).toFixed(2)} due`}
+                    className="absolute -top-1.5 -right-1.5 w-7 h-7 rounded-full bg-ink text-paper flex items-center justify-center shadow-md"
+                  >
+                    <Wallet size={13} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
+
+      <SettlePaymentModal
+        open={!!settleTable}
+        onClose={() => setSettleTable(null)}
+        table={settleTable}
+        onSettled={load}
+      />
     </div>
   );
 }

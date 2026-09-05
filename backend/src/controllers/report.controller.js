@@ -347,6 +347,35 @@ async function paymentsCollected(req, res) {
   });
 }
 
+// ---------------------------------------------------------------------
+// Revenue by payment method — Cash vs UPI vs Card/Online vs Other
+// ---------------------------------------------------------------------
+
+// GET /api/restaurant/reports/revenue-by-method?range=7d|30d|90d|all
+async function revenueByMethod(req, res) {
+  const since = startOfRange(req.query.range || '30d');
+
+  const grouped = await prisma.payment.groupBy({
+    by: ['method'],
+    where: { restaurantId: req.restaurantId, status: 'SUCCEEDED', paidAt: { gte: since } },
+    _sum: { amount: true },
+    _count: { _all: true },
+  });
+
+  const totalRevenue = grouped.reduce((sum, g) => sum + Number(g._sum.amount || 0), 0);
+
+  const data = grouped
+    .map((g) => ({
+      method: g.method,
+      revenue: Number(g._sum.amount || 0),
+      paymentCount: g._count._all,
+      percentOfTotal: totalRevenue > 0 ? Math.round((Number(g._sum.amount || 0) / totalRevenue) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  res.json({ success: true, data: { breakdown: data, totalRevenue } });
+}
+
 module.exports = {
   overview,
   revenueSeries,
@@ -356,4 +385,5 @@ module.exports = {
   chefPerformance,
   myPerformance,
   paymentsCollected,
+  revenueByMethod,
 };

@@ -1,5 +1,6 @@
 const prisma = require('../config/prisma');
 const ApiError = require('../utils/ApiError');
+const { createPendingPaymentsForSession, markPaymentSucceeded } = require('../services/payment.service');
 
 const TAX_RATE = Number(process.env.TAX_RATE || 0);
 
@@ -297,46 +298,72 @@ async function confirmPayment(req, res) {
     include: { diningSession: true },
   });
   if (!payment) throw ApiError.notFound('Payment not found');
-  if (payment.status === 'SUCCEEDED') {
-    return res.json({ success: true, message: 'Already confirmed', data: payment });
-  }
 
-  const updated = await prisma.payment.update({
-    where: { id: payment.id },
-    data: { status: 'SUCCEEDED', paidAt: new Date(), collectedById: req.user.id },
+  const { payment: updated, sessionClosed } = await markPaymentSucceeded(payment, {
+    collectedById: req.user.id,
+    io: req.app.get('io'),
   });
-
-  const sessionId = payment.diningSessionId;
-  let sessionClosed = false;
-
-  if (sessionId) {
-    const remaining = await prisma.payment.count({
-      where: { diningSessionId: sessionId, status: { not: 'SUCCEEDED' } },
-    });
-
-    if (remaining === 0) {
-      const session = await prisma.diningSession.update({
-        where: { id: sessionId },
-        data: { status: 'CLOSED', closedAt: new Date() },
-      });
-      await prisma.order.updateMany({
-        where: { diningSessionId: sessionId },
-        data: { status: 'PAID' },
-      });
-      await prisma.restaurantTable.update({
-        where: { id: session.tableId },
-        data: { status: 'EMPTY' },
-      });
-      sessionClosed = true;
-
-      const io = req.app.get('io');
-      io?.to(`restaurant:${req.restaurantId}`).emit('table:update', { id: session.tableId, status: 'EMPTY' });
-      io?.to(`table:${session.tableId}`).emit('session:closed', { sessionId });
-    }
-  }
 
   emitToRestaurant(req, 'payment:confirmed', { payment: updated, sessionClosed });
   res.json({ success: true, data: { payment: updated, sessionClosed } });
+}
+
+// POST /api/restaurant/waiter/tables/:tableId/settle-payment  { method }
+//
+// The gap this closes: every other checkout path (cash, online) is
+// initiated by the CUSTOMER from their own phone after scanning the
+// table's QR code. A table the waiter served and billed manually never
+// goes through that flow, so it never gets a BillSplit or Payment row
+// created for it at all — the waiter had no way to collect payment on
+// it. This creates the bill split/payment (defaulting to one FULL
+// share, same as the QR path) AND immediately marks it paid in one
+// step, since the waiter is standing at the table with the money in
+// hand right now — there's no reason to make them wait for a separate
+// "confirm collected" tap the way the QR flow does (that two-step
+// exists specifically because the customer requests payment before a
+// waiter has physically arrived).
+async function settleTablePayment(req, res) {
+  const { method } = req.body;
+
+  const table = await prisma.restaurantTable.findFirst({
+    where: { id: req.params.tableId, restaurantId: req.restaurantId },
+  });
+  if (!table) throw ApiError.notFound('Table not found');
+
+  let session = await prisma.diningSession.findFirst({
+    where: { tableId: table.id, status: { in: ['ACTIVE', 'BILL_REQUESTED'] } },
+    orderBy: { startedAt: 'desc' },
+  });
+  if (!session) throw ApiError.notFound('No active order for this table to settle');
+
+  const orderCount = await prisma.order.count({ where: { diningSessionId: session.id } });
+  if (orderCount === 0) throw ApiError.conflict('No orders placed for this table yet');
+
+  if (session.status === 'ACTIVE') {
+    session = await prisma.diningSession.update({
+      where: { id: session.id },
+      data: { status: 'BILL_REQUESTED', billRequestedAt: new Date() },
+    });
+  }
+
+  const io = req.app.get('io');
+  const { payments } = await createPendingPaymentsForSession(session, method);
+
+  let sessionClosed = false;
+  const settled = [];
+  for (const payment of payments) {
+    const result = await markPaymentSucceeded(payment, { collectedById: req.user.id, io });
+    settled.push(result.payment);
+    sessionClosed = sessionClosed || result.sessionClosed;
+  }
+
+  emitToRestaurant(req, 'payment:confirmed', { payments: settled, sessionClosed });
+
+  res.status(201).json({
+    success: true,
+    message: sessionClosed ? 'Table settled and freed up' : 'Payment recorded',
+    data: { payments: settled, sessionClosed },
+  });
 }
 
 // GET /api/restaurant/waiter/payments/collected?range=today
@@ -370,4 +397,5 @@ module.exports = {
   listPendingPayments,
   listCollectedPayments,
   confirmPayment,
+  settleTablePayment,
 };

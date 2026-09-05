@@ -8,6 +8,7 @@ const validate = require('../middlewares/validate');
 const controller = require('../controllers/waiter.controller');
 const reportController = require('../controllers/report.controller');
 const schemas = require('../validators/order.validator');
+const paymentSchemas = require('../validators/payment.validator');
 const requireOwnReportsPermission = require('../middlewares/requireOwnReportsPermission');
 
 router.use(authenticate, authorize('WAITER', 'OWNER', 'MANAGER'), tenantScope);
@@ -25,6 +26,11 @@ router.patch('/calls/:id/resolve', controller.resolveCall);
 router.get('/payments/pending', controller.listPendingPayments);
 router.get('/payments/collected', controller.listCollectedPayments);
 router.patch('/payments/:id/confirm', controller.confirmPayment);
+router.post(
+  '/tables/:tableId/settle-payment',
+  validate(paymentSchemas.settleTablePayment),
+  controller.settleTablePayment
+);
 
 router.get('/reports/my-performance', requireOwnReportsPermission, reportController.myPerformance);
 

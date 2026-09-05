@@ -17,6 +17,8 @@ export const waiterApi = {
   listPendingPayments: () => api.get('/restaurant/waiter/payments/pending').then((r) => r.data.data),
   confirmPayment: (id) =>
     api.patch(`/restaurant/waiter/payments/${id}/confirm`).then((r) => r.data.data),
+  settleTablePayment: (tableId, method) =>
+    api.post(`/restaurant/waiter/tables/${tableId}/settle-payment`, { method }).then((r) => r.data),
 
   myPerformance: () => api.get('/restaurant/waiter/reports/my-performance').then((r) => r.data.data),
 };
