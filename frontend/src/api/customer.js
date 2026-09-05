@@ -6,6 +6,21 @@ export const customerApi = {
 
   getMenu: (slug) => api.get(`/customer/menu/${slug}`).then((r) => r.data.data),
 
+
+getPaymentConfig: () => api.get('/customer/payment-config').then((r) => r.data.data),
+
+  checkoutOnline: (sessionId) =>
+    api.post(`/customer/sessions/${sessionId}/checkout/online`).then((r) => r.data.data),
+
+  confirmOnlinePayment: (stripeSessionId) =>
+    api.get(`/customer/checkout/online/confirm/${stripeSessionId}`).then((r) => r.data.data),
+
+
+
+
+
+
+
   getSession: (sessionId) => api.get(`/customer/sessions/${sessionId}`).then((r) => r.data.data),
 
   placeOrder: (sessionId, items) =>
