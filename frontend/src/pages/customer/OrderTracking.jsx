@@ -115,6 +115,21 @@ export default function OrderTracking() {
         <PartyPopper className="text-saffron-dark mb-3" size={40} />
         <h2 className="font-display text-2xl text-ink mb-1">Thanks for dining with us!</h2>
         <p className="text-sm text-slate">Your bill is settled. See you again soon.</p>
+        {/* Feedback / Complaint Button */}
+      <button
+        onClick={() => setFeedbackOpen(true)}
+        className="customer-menu-btn flex items-center gap-2 rounded-full shadow-lg px-5 py-3 text-sm font-medium"
+      >
+        <MessageSquarePlus size={18} />
+        Feedback / Complaint
+      </button>
+
+      {/* Feedback Modal */}
+      <FeedbackModal
+        open={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        sessionId={session.id}
+      />
       </div>
     );
   }
