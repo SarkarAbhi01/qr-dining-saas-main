@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { Flame, LogOut, Volume2, VolumeX } from 'lucide-react';
+import { Flame, LogOut, Volume2, VolumeX, Printer, PrinterCheck } from 'lucide-react';
 
 import { kdsApi } from '@/api/kds';
 import api from '@/api/client';
@@ -9,6 +9,11 @@ import { disconnectSocket } from '@/sockets/socketClient';
 import { useAuthStore } from '@/store/authStore';
 import { playNotificationSound, isSoundEnabled, setSoundEnabled } from '@/utils/sound';
 import { useRestaurantTheme } from '@/hooks/useRestaurantTheme';
+import { printReceipt, buildKotHtml } from '@/utils/print';
+
+const AUTO_PRINT_KEY = 'qr-dining-kds-autoprint';
+const isAutoPrintEnabled = () => localStorage.getItem(AUTO_PRINT_KEY) !== 'off';
+const setAutoPrintEnabled = (on) => localStorage.setItem(AUTO_PRINT_KEY, on ? 'on' : 'off');
 
 const ACTIVE_STATUSES = ['PENDING', 'PREPARING', 'READY'];
 
@@ -38,6 +43,11 @@ export default function KDS() {
   const [loading, setLoading] = useState(true);
   const [, forceTick] = useState(0);
   const [soundOn, setSoundOn] = useState(isSoundEnabled());
+  const [autoPrintOn, setAutoPrintOn] = useState(isAutoPrintEnabled());
+  const autoPrintRef = useRef(autoPrintOn);
+  useEffect(() => {
+    autoPrintRef.current = autoPrintOn;
+  }, [autoPrintOn]);
   const [stats, setStats] = useState(null);
   const [myStats, setMyStats] = useState(null);
   const logout = useAuthStore((s) => s.logout);
@@ -82,6 +92,9 @@ export default function KDS() {
       playNotificationSound('newOrder');
       toast(`New order — Table ${order.table?.tableNumber ?? ''}`, { icon: '🔔' });
       loadStats();
+      if (autoPrintRef.current) {
+        printReceipt(buildKotHtml(order));
+      }
     },
     'order:update': (order) => {
       upsertOrder(order);
@@ -165,6 +178,18 @@ export default function KDS() {
           >
             {soundOn ? <Volume2 size={18} /> : <VolumeX size={18} />}
           </button>
+          <button
+            onClick={() => {
+              const next = !autoPrintOn;
+              setAutoPrintOn(next);
+              setAutoPrintEnabled(next);
+              toast.success(next ? 'Auto-print KOT enabled' : 'Auto-print KOT disabled');
+            }}
+            className={autoPrintOn ? 'text-paper/60 hover:text-paper' : 'text-paper/30 hover:text-paper/60'}
+            title={autoPrintOn ? 'Disable auto-print KOT' : 'Enable auto-print KOT'}
+          >
+            {autoPrintOn ? <PrinterCheck size={18} /> : <Printer size={18} />}
+          </button>
           <button onClick={handleLogout} className="text-paper/60 hover:text-paper">
             <LogOut size={18} />
           </button>
@@ -231,10 +256,24 @@ function OrderTicket({ order, onAdvance, onAccept }) {
             <p className="text-[11px] text-paper/50 font-mono mt-1">
               {order.source === 'WAITER_MANUAL' ? 'Manual entry' : 'QR order'}
             </p>
+            {order.orderType === 'PARCEL' && (
+              <span className="inline-block mt-1 text-[10px] font-semibold uppercase tracking-wide bg-saffron text-ink px-1.5 py-0.5 rounded">
+                Parcel
+              </span>
+            )}
           </div>
-          <span className={`text-xs font-mono font-semibold px-2 py-1 rounded-full ${styles.badge}`}>
-            {minutes}m
-          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => printReceipt(buildKotHtml(order))}
+              className="text-paper/50 hover:text-paper p-1"
+              title="Reprint KOT"
+            >
+              <Printer size={14} />
+            </button>
+            <span className={`text-xs font-mono font-semibold px-2 py-1 rounded-full ${styles.badge}`}>
+              {minutes}m
+            </span>
+          </div>
         </div>
 
         <ul className="space-y-2.5 flex-1">

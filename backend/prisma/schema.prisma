@@ -107,6 +107,17 @@ enum OrderSource {
   WAITER_MANUAL
 }
 
+// Distinguishes a normal dine-in order from a Parcel/Takeaway order.
+// Kept independent of table/session requirements — a Parcel order
+// still goes through a table (typically a designated counter/takeaway
+// "table" the Owner sets up once via Table management) so it reuses
+// the exact same order lifecycle, KDS ticket flow, and billing model
+// rather than needing a parallel code path.
+enum OrderType {
+  DINE_IN
+  PARCEL
+}
+
 enum PaymentMethod {
   CASH
   CARD
@@ -114,6 +125,7 @@ enum PaymentMethod {
   STRIPE
   RAZORPAY
   WALLET
+  OTHER
 }
 
 enum PaymentStatus {
@@ -208,7 +220,12 @@ model Restaurant {
   customMaxStaff        Int?
   customLimitsExpiresAt DateTime?
 
-
+  // --- Custom branding: Owner-controlled colors/fonts applied live on
+  // the customer-facing menu. Kept as a single flexible JSON blob
+  // (rather than one column per property) so new theme knobs can be
+  // added later without a migration. Shape:
+  // { bodyColor, headerColor, menuColor, hoverColor, fontFamily, fontSize }
+  // All keys optional — anything unset falls back to the product default.
   themeConfig      Json?
 
   createdAt        DateTime          @default(now())
@@ -308,6 +325,14 @@ model User {
   // Owner-granted permission: Chef/Waiter accounts can only see their
   // own performance report if this is explicitly turned on for them.
   canViewOwnReports Boolean @default(false)
+  // Bumped by +1 every time this user logs in. Embedded in the access
+  // token at sign time; `authenticate` middleware rejects any request
+  // whose token carries an older version than what's currently stored
+  // here. This is what makes "only one active session" work: logging
+  // in on a second device bumps this, silently invalidating the first
+  // device's token on its very next request — no need to track device
+  // identity or push a live disconnect signal.
+  sessionVersion    Int     @default(0)
 
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
@@ -494,6 +519,7 @@ model Order {
 
   status         OrderStatus  @default(PENDING)
   source         OrderSource  @default(CUSTOMER_QR)
+  orderType      OrderType    @default(DINE_IN)
 
   // Set when a Waiter manually keys in the order for a customer
   takenByWaiterId String?

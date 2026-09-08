@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Banknote, Smartphone, CreditCard, MoreHorizontal, Check } from 'lucide-react';
+import { Banknote, Smartphone, CreditCard, MoreHorizontal, Check, Printer } from 'lucide-react';
 
 import Modal from '@/components/Modal';
 import { waiterApi } from '@/api/waiter';
+import { printReceipt, buildBillHtml } from '@/utils/print';
 
 const METHODS = [
   { value: 'CASH', label: 'Cash', icon: Banknote },
@@ -15,6 +16,19 @@ const METHODS = [
 export default function SettlePaymentModal({ open, onClose, table, onSettled }) {
   const [method, setMethod] = useState('CASH');
   const [submitting, setSubmitting] = useState(false);
+  const [printing, setPrinting] = useState(false);
+
+  async function handlePrintBill() {
+    setPrinting(true);
+    try {
+      const { restaurant, table: t, orders } = await waiterApi.getTableBill(table.id);
+      printReceipt(buildBillHtml({ restaurant, table: t, orders }));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to load bill for printing');
+    } finally {
+      setPrinting(false);
+    }
+  }
 
   async function handleConfirm() {
     setSubmitting(true);
@@ -36,6 +50,14 @@ export default function SettlePaymentModal({ open, onClose, table, onSettled }) 
     <Modal open={open} onClose={onClose} title={`Collect payment — Table ${table.tableNumber}`}>
       <p className="text-sm text-slate mb-1">Amount due</p>
       <p className="font-display text-3xl text-ink mb-5">₹{Number(table.session?.totalAmount || 0).toFixed(2)}</p>
+
+      <button
+        onClick={handlePrintBill}
+        disabled={printing}
+        className="w-full flex items-center justify-center gap-2 border border-line rounded-ticket px-4 py-2.5 text-sm font-medium mb-5 disabled:opacity-50"
+      >
+        <Printer size={15} /> {printing ? 'Preparing…' : 'Print bill'}
+      </button>
 
       <p className="text-xs font-medium text-slate mb-2">How did the guest pay?</p>
       <div className="grid grid-cols-2 gap-2 mb-5">

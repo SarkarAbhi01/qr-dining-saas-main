@@ -34,11 +34,20 @@ async function authenticate(req, res, next) {
       name: true,
       email: true,
       canViewOwnReports: true,
+      sessionVersion: true,
     },
   });
 
   if (!user || !user.isActive) {
     throw ApiError.unauthorized('Account is inactive or no longer exists');
+  }
+
+  // Single-active-session enforcement: this account was logged into on
+  // another device after this token was issued (that login bumped
+  // sessionVersion), so this token is stale even though it hasn't
+  // technically expired yet.
+  if (payload.sessionVersion !== user.sessionVersion) {
+    throw ApiError.unauthorized('Logged out — this account was signed in on another device');
   }
 
   req.user = user;

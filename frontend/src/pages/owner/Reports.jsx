@@ -14,6 +14,7 @@ import {
 
 import { reportsApi } from '@/api/reports';
 import StatCard from '@/components/StatCard';
+import ReportDownloadButtons from '@/components/ReportDownloadButtons';
 
 const RANGE_OPTIONS = [
   { value: '7d', label: '7 days' },
@@ -117,18 +118,24 @@ export default function Reports() {
       <div className="ticket-edge bg-white border border-line rounded-ticket p-5 mt-2 mb-6">
         <div className="flex items-center justify-between mb-4">
           <p className="text-xs font-semibold text-slate uppercase tracking-wide">Revenue</p>
-          <div className="flex gap-1">
-            {RANGE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setRange(opt.value)}
-                className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
-                  range === opt.value ? 'staff-menu-active' : 'text-slate hover:bg-paper-dim'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-3">
+            <ReportDownloadButtons
+              title="Revenue"
+              rows={revenueChartData.map((r) => ({ Date: r.label, Revenue: r.revenue }))}
+            />
+            <div className="flex gap-1">
+              {RANGE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setRange(opt.value)}
+                  className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
+                    range === opt.value ? 'staff-menu-active' : 'text-slate hover:bg-paper-dim'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         <div style={{ width: '100%', height: 220 }}>
@@ -156,7 +163,18 @@ export default function Reports() {
       <div className="grid md:grid-cols-2 gap-6 mb-6">
         {/* --- Top items --- */}
         <div className="ticket-edge bg-white border border-line rounded-ticket p-5 mt-2">
-          <p className="text-xs font-semibold text-slate uppercase tracking-wide mb-4">Top Selling Items</p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-semibold text-slate uppercase tracking-wide">Top Selling Items</p>
+            <ReportDownloadButtons
+              title="Top Selling Items"
+              rows={topItems.map((item, idx) => ({
+                Rank: idx + 1,
+                Item: item.name,
+                'Qty Sold': item.quantitySold,
+                Revenue: item.revenue,
+              }))}
+            />
+          </div>
           {topItems.length === 0 ? (
             <p className="text-sm text-slate">No sales yet.</p>
           ) : (
@@ -184,7 +202,13 @@ export default function Reports() {
 
         {/* --- Peak hours --- */}
         <div className="ticket-edge bg-white border border-line rounded-ticket p-5 mt-2">
-          <p className="text-xs font-semibold text-slate uppercase tracking-wide mb-4">Peak Hours (30d)</p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-semibold text-slate uppercase tracking-wide">Peak Hours (30d)</p>
+            <ReportDownloadButtons
+              title="Peak Hours"
+              rows={peakHoursData.map((h) => ({ Hour: h.label, Orders: h.orders }))}
+            />
+          </div>
           <div style={{ width: '100%', height: 200 }}>
             <ResponsiveContainer>
               <BarChart data={peakHoursData}>
@@ -210,7 +234,20 @@ export default function Reports() {
 
       {/* --- Waiter performance --- */}
       <div className="ticket-edge bg-white border border-line rounded-ticket p-5 mt-2 mb-6">
-        <p className="text-xs font-semibold text-slate uppercase tracking-wide mb-4">Waiter Performance</p>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-semibold text-slate uppercase tracking-wide">Waiter Performance</p>
+          <ReportDownloadButtons
+            title="Waiter Performance"
+            rows={staff.map((s) => ({
+              Waiter: s.name,
+              Active: s.isActive ? 'Yes' : 'No',
+              'Orders Taken': s.ordersTaken,
+              'Tables Served': s.tablesServed,
+              'Calls Attended': s.callsAttended,
+              Revenue: s.revenueGenerated,
+            }))}
+          />
+        </div>
         {staff.length === 0 ? (
           <p className="text-sm text-slate">No waiter accounts yet.</p>
         ) : (
@@ -246,7 +283,18 @@ export default function Reports() {
 
       {/* --- Chef performance --- */}
       <div className="ticket-edge bg-white border border-line rounded-ticket p-5 mt-2 mb-6">
-        <p className="text-xs font-semibold text-slate uppercase tracking-wide mb-4">Chef Performance</p>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-semibold text-slate uppercase tracking-wide">Chef Performance</p>
+          <ReportDownloadButtons
+            title="Chef Performance"
+            rows={chefs.map((c) => ({
+              Chef: c.name,
+              Active: c.isActive ? 'Yes' : 'No',
+              'Orders Accepted': c.ordersAccepted,
+              'Orders Completed': c.ordersCompleted,
+            }))}
+          />
+        </div>
         {chefs.length === 0 ? (
           <p className="text-sm text-slate">No chef accounts yet.</p>
         ) : (
@@ -276,9 +324,20 @@ export default function Reports() {
 
       {/* --- Revenue by payment method --- */}
       <div className="ticket-edge bg-white border border-line rounded-ticket p-5 mt-2 mb-6">
-        <p className="text-xs font-semibold text-slate uppercase tracking-wide mb-4">
-          Revenue by Payment Method
-        </p>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-semibold text-slate uppercase tracking-wide">
+            Revenue by Payment Method
+          </p>
+          <ReportDownloadButtons
+            title="Revenue by Payment Method"
+            rows={methodBreakdown.breakdown.map((m) => ({
+              Method: METHOD_LABEL[m.method] || m.method,
+              Revenue: m.revenue,
+              Payments: m.paymentCount,
+              '% of Total': m.percentOfTotal,
+            }))}
+          />
+        </div>
         {methodBreakdown.breakdown.length === 0 ? (
           <p className="text-sm text-slate">No payments confirmed in this period.</p>
         ) : (
@@ -306,7 +365,18 @@ export default function Reports() {
 
       {/* --- Payments collected --- */}
       <div className="ticket-edge bg-white border border-line rounded-ticket p-5 mt-2">
-        <p className="text-xs font-semibold text-slate uppercase tracking-wide mb-4">Payments Collected</p>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-semibold text-slate uppercase tracking-wide">Payments Collected</p>
+          <ReportDownloadButtons
+            title="Payments Collected"
+            rows={payments.summary.map((p) => ({
+              'Collected By': p.name,
+              Role: p.role,
+              Payments: p.count,
+              'Total Collected': p.totalCollected,
+            }))}
+          />
+        </div>
         {payments.summary.length === 0 ? (
           <p className="text-sm text-slate">No cash payments confirmed in this period.</p>
         ) : (

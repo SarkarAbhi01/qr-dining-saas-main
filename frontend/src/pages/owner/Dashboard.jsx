@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { UtensilsCrossed, QrCode, Users, Activity, BarChart3, CreditCard, MessageSquare, Banknote, Settings as SettingsIcon, Palette } from 'lucide-react';
+import { UtensilsCrossed, QrCode, Users, Activity, BarChart3, CreditCard, MessageSquare, Banknote, Settings as SettingsIcon, Palette, Flame, Grid3x3 } from 'lucide-react';
 
 import DashboardShell from '@/layouts/DashboardShell';
 import Menu from './Menu';
@@ -24,6 +24,13 @@ const navItems = [
   { to: '/owner/billing', label: 'Billing', icon: CreditCard },
   { to: '/owner/theme', label: 'Theme', icon: Palette },
   { to: '/owner/settings', label: 'Settings', icon: SettingsIcon },
+  // These two are separate top-level dashboards (their own full-screen
+  // layouts, not nested Owner pages) — clicking them navigates away
+  // from this shell entirely, the same as if a Chef/Waiter had logged
+  // in directly. That's intentional: Owner/Manager can step in and
+  // work the kitchen or the floor, not just view a read-only mirror.
+  { to: '/kitchen', label: 'Kitchen View', icon: Flame },
+  { to: '/waiter', label: 'Waiter View', icon: Grid3x3 },
 ];
 
 export default function OwnerDashboard() {

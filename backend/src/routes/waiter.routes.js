@@ -14,6 +14,7 @@ const requireOwnReportsPermission = require('../middlewares/requireOwnReportsPer
 router.use(authenticate, authorize('WAITER', 'OWNER', 'MANAGER'), tenantScope);
 
 router.get('/tables', controller.listTables);
+router.get('/tables/:tableId/bill', controller.getTableBill);
 router.get('/menu', controller.getMenu);
 router.get('/service-queue', controller.serviceQueue);
 router.patch('/orders/:id/serve', controller.markServed);

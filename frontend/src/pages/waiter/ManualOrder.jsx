@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, Minus } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, UtensilsCrossed, ShoppingBag } from 'lucide-react';
 
 import { waiterApi } from '@/api/waiter';
+
+const ORDER_TYPES = [
+  { value: 'DINE_IN', label: 'Dine-in', icon: UtensilsCrossed },
+  { value: 'PARCEL', label: 'Parcel / Takeaway', icon: ShoppingBag },
+];
 
 export default function ManualOrder() {
   const { tableId } = useParams();
   const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState({}); // menuItemId -> { item, quantity }
+  const [orderType, setOrderType] = useState('DINE_IN');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -39,13 +45,14 @@ export default function ManualOrder() {
     try {
       await waiterApi.createManualOrder({
         tableId,
+        orderType,
         items: cartItems.map(({ item, quantity }) => ({
           menuItemId: item.id,
           quantity,
           modifierOptionIds: [],
         })),
       });
-      toast.success('Order sent to kitchen');
+      toast.success(orderType === 'PARCEL' ? 'Parcel order sent to kitchen' : 'Order sent to kitchen');
       navigate('/waiter');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to place order');
@@ -59,7 +66,28 @@ export default function ManualOrder() {
       <button onClick={() => navigate('/waiter')} className="inline-flex items-center gap-1 text-sm text-slate hover:text-ink mb-4">
         <ArrowLeft size={14} /> Tables
       </button>
-      <h1 className="font-display text-2xl text-ink mb-4">Manual order</h1>
+      <h1 className="font-display text-2xl text-ink mb-1">Manual order</h1>
+      <p className="text-xs text-slate mb-4">
+        For a parcel/takeaway, use your restaurant's counter table and select Parcel below.
+      </p>
+
+      <div className="grid grid-cols-2 gap-2 mb-5">
+        {ORDER_TYPES.map((t) => {
+          const Icon = t.icon;
+          const active = orderType === t.value;
+          return (
+            <button
+              key={t.value}
+              onClick={() => setOrderType(t.value)}
+              className={`flex items-center justify-center gap-2 rounded-ticket border px-3 py-2.5 text-sm font-medium transition-colors ${
+                active ? 'staff-menu-active border-transparent' : 'border-line text-ink hover:border-ink'
+              }`}
+            >
+              <Icon size={15} /> {t.label}
+            </button>
+          );
+        })}
+      </div>
 
       {categories.map((cat) => (
         <div key={cat.id} className="mb-5">

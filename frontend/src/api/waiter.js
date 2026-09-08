@@ -2,6 +2,7 @@ import api from './client';
 
 export const waiterApi = {
   listTables: () => api.get('/restaurant/waiter/tables').then((r) => r.data.data),
+  getTableBill: (tableId) => api.get(`/restaurant/waiter/tables/${tableId}/bill`).then((r) => r.data.data),
   getMenu: () => api.get('/restaurant/waiter/menu').then((r) => r.data.data),
   serviceQueue: () => api.get('/restaurant/waiter/service-queue').then((r) => r.data.data),
   markServed: (orderId) =>

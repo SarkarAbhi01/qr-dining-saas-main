@@ -15,6 +15,10 @@ function signAccessToken(user) {
       sub: user.id,
       role: user.role,
       restaurantId: user.restaurantId || null,
+      // See User.sessionVersion in schema.prisma — this is the single-
+      // active-session mechanism. A token signed with an older version
+      // than what's currently on the user record gets rejected.
+      sessionVersion: user.sessionVersion ?? 0,
     },
     ACCESS_SECRET,
     { expiresIn: ACCESS_EXPIRES_IN }

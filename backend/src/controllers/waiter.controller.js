@@ -173,6 +173,7 @@ async function createManualOrder(req, res) {
       tableId: table.id,
       diningSessionId: session.id,
       source: 'WAITER_MANUAL',
+      orderType: req.body.orderType || 'DINE_IN',
       takenByWaiterId: req.user.id,
       subtotal,
       taxAmount,
@@ -308,6 +309,34 @@ async function confirmPayment(req, res) {
   res.json({ success: true, data: { payment: updated, sessionClosed } });
 }
 
+// GET /api/restaurant/waiter/tables/:tableId/bill
+// Itemized detail for the table's current sitting — every order placed
+// during it, not just the latest one — so a waiter can print or review
+// the full bill before (or without) settling payment.
+async function getTableBill(req, res) {
+  const table = await prisma.restaurantTable.findFirst({
+    where: { id: req.params.tableId, restaurantId: req.restaurantId },
+  });
+  if (!table) throw ApiError.notFound('Table not found');
+
+  const session = await prisma.diningSession.findFirst({
+    where: { tableId: table.id, status: { in: ['ACTIVE', 'BILL_REQUESTED'] } },
+    orderBy: { startedAt: 'desc' },
+  });
+  if (!session) throw ApiError.notFound('No active order for this table');
+
+  const [orders, restaurant] = await Promise.all([
+    prisma.order.findMany({
+      where: { diningSessionId: session.id },
+      include: { items: { include: { menuItem: true, modifiers: { include: { modifierOption: true } } } } },
+      orderBy: { placedAt: 'asc' },
+    }),
+    prisma.restaurant.findUnique({ where: { id: req.restaurantId }, select: { name: true } }),
+  ]);
+
+  res.json({ success: true, data: { restaurant, table, orders } });
+}
+
 // POST /api/restaurant/waiter/tables/:tableId/settle-payment  { method }
 //
 // The gap this closes: every other checkout path (cash, online) is
@@ -391,6 +420,7 @@ module.exports = {
   markServed,
   createManualOrder,
   getMenu,
+  getTableBill,
   listCalls,
   acknowledgeCall,
   resolveCall,

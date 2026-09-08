@@ -20,6 +20,7 @@ const orderLine = Joi.object({
 // so this either targets an existing active session or starts one.
 const manualOrder = Joi.object({
   tableId: Joi.string().uuid().required(),
+  orderType: Joi.string().valid('DINE_IN', 'PARCEL').default('DINE_IN'),
   items: Joi.array().items(orderLine).min(1).required(),
 });
 

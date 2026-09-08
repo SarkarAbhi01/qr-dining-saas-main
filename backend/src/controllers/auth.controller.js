@@ -27,13 +27,22 @@ async function login(req, res) {
     throw ApiError.unauthorized('Invalid email or password');
   }
 
-  const { accessToken, refreshToken } = await tokenService.issueTokenPair(user);
+  // Single-active-session enforcement: bumping sessionVersion makes
+  // any access token issued before this moment fail its version check
+  // on its very next request (see middlewares/authenticate.js), and
+  // revoking refresh tokens stops that old device from silently
+  // renewing its way to a fresh one instead.
+  const updatedUser = await prisma.user.update({
+    where: { id: user.id },
+    data: { sessionVersion: { increment: 1 }, lastLoginAt: new Date() },
+  });
+  await tokenService.revokeAllUserTokens(user.id);
 
-  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+  const { accessToken, refreshToken } = await tokenService.issueTokenPair(updatedUser);
 
   res.json({
     success: true,
-    data: { user: serializeUser(user), accessToken, refreshToken },
+    data: { user: serializeUser(updatedUser), accessToken, refreshToken },
   });
 }
 

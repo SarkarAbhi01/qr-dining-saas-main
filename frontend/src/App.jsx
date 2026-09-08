@@ -15,6 +15,7 @@ import CustomerApp from '@/pages/customer/CustomerApp';
 import CustomerMenu from '@/pages/customer/Menu';
 import CustomerCart from '@/pages/customer/Cart';
 import CustomerOrders from '@/pages/customer/OrderTracking';
+import PaymentConfirm from '@/pages/customer/PaymentConfirm';
 
 export default function App() {
   return (
@@ -22,6 +23,13 @@ export default function App() {
       {/* --- Public --- */}
       <Route path="/login" element={<Login />} />
       <Route path="/unauthorized" element={<Unauthorized />} />
+
+      {/* Stripe redirects here after hosted checkout — a static path, so
+          it must be registered separately from the dynamic
+          :restaurantSlug/:tableId route below (React Router ranks static
+          segments above dynamic ones, but keeping this explicit avoids
+          any ambiguity). */}
+      <Route path="/order/pay/confirm" element={<PaymentConfirm />} />
 
       {/* Customer QR flow — no login, table identified via URL param */}
       <Route path="/order/:restaurantSlug/:tableId" element={<CustomerApp />}>
@@ -40,13 +48,13 @@ export default function App() {
         <Route path="/owner/*" element={<OwnerDashboard />} />
       </Route>
 
-      {/* --- Chef / KDS --- */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.CHEF]} />}>
+      {/* --- Chef / KDS (Owner/Manager can also monitor the kitchen) --- */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CHEF, ROLES.OWNER, ROLES.MANAGER]} />}>
         <Route path="/kitchen/*" element={<KitchenKDS />} />
       </Route>
 
-      {/* --- Waiter --- */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAITER]} />}>
+      {/* --- Waiter (Owner/Manager can also work the floor) --- */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAITER, ROLES.OWNER, ROLES.MANAGER]} />}>
         <Route path="/waiter/*" element={<WaiterDashboard />} />
       </Route>
 
