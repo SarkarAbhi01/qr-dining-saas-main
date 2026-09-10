@@ -103,4 +103,45 @@ async function markPaymentSucceeded(payment, { collectedById = null, io = null }
   return { payment: updated, sessionClosed };
 }
 
-module.exports = { createPendingPaymentsForSession, markPaymentSucceeded };
+/**
+ * Reduces one or more PENDING payments by a total discount amount,
+ * distributing it proportionally across them if there's more than one
+ * (rare — only happens if a split-bill was set up before a waiter
+ * settles the table directly). Preserves the pre-discount amount on
+ * `originalAmount` for audit; `amount` becomes the actual amount now
+ * owed, which is what "fully paid" gets judged against everywhere
+ * else in the codebase. Example: a ₹305 bill discounted by ₹5 is
+ * considered fully settled once ₹300 is paid — the discount doesn't
+ * leave a phantom ₹5 balance.
+ */
+async function applyDiscount(payments, discountAmount, { reason = null, discountedById = null } = {}) {
+  const total = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  if (discountAmount > total) {
+    throw ApiError.badRequest(
+      `Discount (₹${discountAmount}) can't exceed the amount due (₹${total.toFixed(2)})`
+    );
+  }
+  if (discountAmount <= 0) return payments;
+
+  const updated = [];
+  for (const payment of payments) {
+    const share = total > 0 ? Number(payment.amount) / total : 0;
+    const paymentDiscount = Math.round(discountAmount * share * 100) / 100;
+    const newAmount = Math.max(0, Number(payment.amount) - paymentDiscount);
+
+    const result = await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        originalAmount: payment.amount,
+        discountAmount: paymentDiscount,
+        discountReason: reason || null,
+        discountedById,
+        amount: newAmount,
+      },
+    });
+    updated.push(result);
+  }
+  return updated;
+}
+
+module.exports = { createPendingPaymentsForSession, markPaymentSucceeded, applyDiscount };

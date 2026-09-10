@@ -26,7 +26,7 @@ router.patch('/calls/:id/resolve', controller.resolveCall);
 
 router.get('/payments/pending', controller.listPendingPayments);
 router.get('/payments/collected', controller.listCollectedPayments);
-router.patch('/payments/:id/confirm', controller.confirmPayment);
+router.patch('/payments/:id/confirm', validate(paymentSchemas.confirmPayment), controller.confirmPayment);
 router.post(
   '/tables/:tableId/settle-payment',
   validate(paymentSchemas.settleTablePayment),

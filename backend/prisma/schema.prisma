@@ -228,6 +228,16 @@ model Restaurant {
   // All keys optional — anything unset falls back to the product default.
   themeConfig      Json?
 
+  // --- Restaurant's own online payment gateway (Razorpay). Distinct
+  // from the platform-wide Stripe key (env var, same for every
+  // restaurant) — this lets each restaurant connect their own account
+  // so payments settle directly to them. "Online payment available"
+  // for a given restaurant's customers is true if EITHER this is
+  // configured OR the platform Stripe key is. Secret is stored as-is
+  // here for simplicity — production should encrypt at rest.
+  razorpayKeyId     String?
+  razorpayKeySecret String?
+
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -345,6 +355,7 @@ model User {
   servedOrders     Order[]       @relation("OrderServedBy")
   openedSessions   DiningSession[] @relation("SessionOpenedBy")
   collectedPayments Payment[]    @relation("PaymentCollectedBy")
+  discountedPayments Payment[]   @relation("PaymentDiscountedBy")
   waiterComplaints Feedback[]    @relation("FeedbackAboutWaiter")
   chefComplaints   Feedback[]    @relation("FeedbackAboutChef")
   acknowledgedCalls WaiterCall[] @relation("AcknowledgedByWaiter")
@@ -638,7 +649,22 @@ model Payment {
 
   method       PaymentMethod
   status       PaymentStatus @default(PENDING)
+  // The FINAL amount actually owed/collected — if a discount was
+  // applied, this is already net of it (e.g. a ₹305 bill settled for
+  // ₹300 has amount = 300). originalAmount preserves what the bill
+  // would have been before the discount, purely for audit/reporting —
+  // "settled" is always judged against `amount`, never originalAmount.
   amount       Decimal       @db.Decimal(10, 2)
+  originalAmount Decimal?    @db.Decimal(10, 2)
+  discountAmount Decimal?    @db.Decimal(10, 2)
+  discountReason String?
+  // Who approved the discount (Owner/Manager, per policy — see
+  // waiter.controller.js) — separate from collectedById, since the
+  // person confirming cash-in-hand and the person who approved
+  // reducing the bill are the same action here but worth naming
+  // distinctly in the data model in case that ever changes.
+  discountedById String?
+  discountedBy   User?        @relation("PaymentDiscountedBy", fields: [discountedById], references: [id])
   currency     String        @default("INR")
 
   // Accountability: whichever staff member (Waiter, Manager, or Owner)

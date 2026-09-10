@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { Flame, LogOut, Volume2, VolumeX, Printer, PrinterCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Flame, LogOut, Volume2, VolumeX, Printer, PrinterCheck, ArrowLeft } from 'lucide-react';
 
 import { kdsApi } from '@/api/kds';
 import api from '@/api/client';
@@ -51,6 +52,8 @@ export default function KDS() {
   const [stats, setStats] = useState(null);
   const [myStats, setMyStats] = useState(null);
   const logout = useAuthStore((s) => s.logout);
+  const user = useAuthStore((s) => s.user);
+  const isStaffVisiting = user?.role === 'OWNER' || user?.role === 'MANAGER';
   const { style: themeStyle } = useRestaurantTheme();
 
   const loadStats = useCallback(() => {
@@ -157,6 +160,15 @@ export default function KDS() {
     >
       <header className="flex items-center justify-between px-6 py-4 border-b border-white/10">
         <div className="flex items-center gap-2">
+          {isStaffVisiting && (
+            <Link
+              to="/owner"
+              className="flex items-center gap-1 text-paper/60 hover:text-paper text-xs font-medium mr-2 border border-white/10 rounded px-2 py-1"
+              title="Back to your dashboard — you'll stay signed in"
+            >
+              <ArrowLeft size={14} /> Dashboard
+            </Link>
+          )}
           <Flame size={20} className="text-saffron" />
           <h1 className="font-display text-xl">Kitchen Display</h1>
           {myStats && (
@@ -166,6 +178,14 @@ export default function KDS() {
           )}
         </div>
         <div className="flex items-center gap-4">
+          {/* Whoever is actually logged in — accept/serve actions in this
+              session record against THIS identity, never a staff
+              member's, so this is always the ground truth for "who is
+              doing this." */}
+          <span className="text-[11px] text-paper/50">
+            Signed in as <span className="text-paper/80 font-medium">{user?.name}</span>
+            {isStaffVisiting ? ` (${user.role === 'OWNER' ? 'Owner' : 'Manager'})` : ''}
+          </span>
           <span className="text-xs font-mono text-paper/60">{sorted.length} active</span>
           <button
             onClick={() => {

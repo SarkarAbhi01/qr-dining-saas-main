@@ -1,6 +1,6 @@
 const prisma = require('../config/prisma');
 const ApiError = require('../utils/ApiError');
-const { createPendingPaymentsForSession, markPaymentSucceeded } = require('../services/payment.service');
+const { createPendingPaymentsForSession, markPaymentSucceeded, applyDiscount } = require('../services/payment.service');
 
 const TAX_RATE = Number(process.env.TAX_RATE || 0);
 
@@ -294,11 +294,23 @@ async function listPendingPayments(req, res) {
 // Marks a single share as paid. Once every share on the session is paid,
 // the session closes and the table frees up for the next sitting.
 async function confirmPayment(req, res) {
-  const payment = await prisma.payment.findFirst({
+  const { discountAmount, discountReason } = req.body;
+
+  let payment = await prisma.payment.findFirst({
     where: { id: req.params.id, restaurantId: req.restaurantId },
     include: { diningSession: true },
   });
   if (!payment) throw ApiError.notFound('Payment not found');
+
+  if (discountAmount > 0) {
+    if (!['OWNER', 'MANAGER'].includes(req.user.role)) {
+      throw ApiError.forbidden('Only an Owner or Manager can apply a discount');
+    }
+    [payment] = await applyDiscount([payment], discountAmount, {
+      reason: discountReason,
+      discountedById: req.user.id,
+    });
+  }
 
   const { payment: updated, sessionClosed } = await markPaymentSucceeded(payment, {
     collectedById: req.user.id,
@@ -352,7 +364,7 @@ async function getTableBill(req, res) {
 // exists specifically because the customer requests payment before a
 // waiter has physically arrived).
 async function settleTablePayment(req, res) {
-  const { method } = req.body;
+  const { method, discountAmount, discountReason } = req.body;
 
   const table = await prisma.restaurantTable.findFirst({
     where: { id: req.params.tableId, restaurantId: req.restaurantId },
@@ -368,6 +380,10 @@ async function settleTablePayment(req, res) {
   const orderCount = await prisma.order.count({ where: { diningSessionId: session.id } });
   if (orderCount === 0) throw ApiError.conflict('No orders placed for this table yet');
 
+  if (discountAmount > 0 && !['OWNER', 'MANAGER'].includes(req.user.role)) {
+    throw ApiError.forbidden('Only an Owner or Manager can apply a discount');
+  }
+
   if (session.status === 'ACTIVE') {
     session = await prisma.diningSession.update({
       where: { id: session.id },
@@ -376,7 +392,14 @@ async function settleTablePayment(req, res) {
   }
 
   const io = req.app.get('io');
-  const { payments } = await createPendingPaymentsForSession(session, method);
+  let { payments } = await createPendingPaymentsForSession(session, method);
+
+  if (discountAmount > 0) {
+    payments = await applyDiscount(payments, discountAmount, {
+      reason: discountReason,
+      discountedById: req.user.id,
+    });
+  }
 
   let sessionClosed = false;
   const settled = [];

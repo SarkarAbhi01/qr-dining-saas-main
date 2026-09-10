@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { KeyRound } from 'lucide-react';
+import { KeyRound, CreditCard, ShieldCheck, ShieldOff } from 'lucide-react';
 
 import api from '@/api/client';
+import { useAuthStore } from '@/store/authStore';
 
 export default function Settings() {
   const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [submitting, setSubmitting] = useState(false);
+  const role = useAuthStore((s) => s.user?.role);
+  const isOwner = role === 'OWNER';
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -35,7 +38,7 @@ export default function Settings() {
       <h1 className="font-display text-2xl text-ink mb-1">Settings</h1>
       <p className="text-sm text-slate mb-6">Manage your account security.</p>
 
-      <div className="ticket-edge bg-white border border-line rounded-ticket p-5 mt-2">
+      <div className="ticket-edge bg-white border border-line rounded-ticket p-5 mt-2 mb-6">
         <div className="flex items-center gap-2 mb-4">
           <KeyRound size={16} className="text-slate" />
           <p className="text-sm font-medium text-ink">Change password</p>
@@ -82,6 +85,104 @@ export default function Settings() {
           </button>
         </form>
       </div>
+
+      {isOwner && <PaymentGatewaySection />}
+    </div>
+  );
+}
+
+function PaymentGatewaySection() {
+  const [keyId, setKeyId] = useState('');
+  const [keySecret, setKeySecret] = useState('');
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api
+      .get('/restaurant/payment-gateway')
+      .then(({ data }) => {
+        setStatus(data.data);
+        setKeyId(data.data.razorpayKeyId || '');
+      })
+      .catch(() => toast.error('Failed to load payment gateway settings'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleSave(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const { data } = await api.patch('/restaurant/payment-gateway', {
+        razorpayKeyId: keyId,
+        ...(keySecret ? { razorpayKeySecret: keySecret } : {}),
+      });
+      setStatus((s) => ({ ...s, ...data.data }));
+      setKeySecret('');
+      toast.success('Payment gateway updated');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="ticket-edge bg-white border border-line rounded-ticket p-5 mt-2">
+      <div className="flex items-center gap-2 mb-1">
+        <CreditCard size={16} className="text-slate" />
+        <p className="text-sm font-medium text-ink">Online payment gateway (Razorpay)</p>
+      </div>
+      <p className="text-xs text-slate mb-4">
+        Connect your own Razorpay account so online payments settle directly to you.
+      </p>
+
+      {loading ? (
+        <p className="text-sm text-slate">Loading…</p>
+      ) : (
+        <>
+          <div
+            className={`flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-ticket mb-4 ${
+              status?.razorpayConfigured ? 'bg-basil-soft text-basil' : 'bg-paper-dim text-slate'
+            }`}
+          >
+            {status?.razorpayConfigured ? <ShieldCheck size={14} /> : <ShieldOff size={14} />}
+            {status?.razorpayConfigured ? 'Configured' : 'Not configured — customers will only see Pay Cash'}
+          </div>
+
+          <form onSubmit={handleSave} className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate mb-1">Key ID</label>
+              <input
+                type="text"
+                value={keyId}
+                onChange={(e) => setKeyId(e.target.value)}
+                placeholder="rzp_live_xxxxxxxxxxxx"
+                className="w-full border border-line rounded px-3 py-2 text-sm font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate mb-1">
+                Key Secret {status?.razorpayKeySecretMasked && `(currently ${status.razorpayKeySecretMasked})`}
+              </label>
+              <input
+                type="password"
+                value={keySecret}
+                onChange={(e) => setKeySecret(e.target.value)}
+                placeholder={status?.razorpayKeySecretMasked ? 'Leave blank to keep current secret' : 'Enter secret'}
+                className="w-full border border-line rounded px-3 py-2 text-sm font-mono"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={saving}
+              className="staff-menu-btn w-full rounded px-3 py-2.5 text-sm font-medium disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </form>
+        </>
+      )}
     </div>
   );
 }

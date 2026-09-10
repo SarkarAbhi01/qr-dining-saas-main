@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const ApiError = require('../utils/ApiError');
 const { hashPassword, generateTempPassword } = require('../utils/password');
+const { isRazorpayConfigured } = require('../config/razorpay');
 
 function serializeRestaurant(r) {
   return {
@@ -366,9 +367,18 @@ async function restaurantRevenueReport(req, res) {
   const days = Math.min(Number(req.query.days) || 30, 90);
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  const [restaurants, rows] = await Promise.all([
+  const [restaurants, revenueRows, onlineUsageRows] = await Promise.all([
     prisma.restaurant.findMany({
-      select: { id: true, name: true, slug: true, status: true, revenueModel: true, commissionRatePercent: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        status: true,
+        revenueModel: true,
+        commissionRatePercent: true,
+        razorpayKeyId: true,
+        razorpayKeySecret: true,
+      },
       orderBy: { name: 'asc' },
     }),
     prisma.$queryRaw`
@@ -378,10 +388,41 @@ async function restaurantRevenueReport(req, res) {
       GROUP BY "restaurantId", day
       ORDER BY day ASC
     `,
+    // How many of a restaurant's SUCCEEDED payments were actually
+    // collected via an online method in this window — "configured"
+    // alone doesn't tell you online payment is actually being used by
+    // customers, this does.
+    prisma.$queryRaw`
+      SELECT "restaurantId" AS restaurant_id, COUNT(*) AS online_payments
+      FROM payments
+      WHERE status = 'SUCCEEDED' AND "paidAt" >= ${since}
+        AND method IN ('STRIPE', 'RAZORPAY', 'CARD', 'WALLET')
+      GROUP BY "restaurantId"
+    `,
   ]);
 
-  const byRestaurant = new Map(restaurants.map((r) => [r.id, { ...r, daily: [], totalRevenue: 0 }]));
-  for (const row of rows) {
+  const onlineUsageMap = new Map(onlineUsageRows.map((r) => [r.restaurant_id, Number(r.online_payments)]));
+
+  const byRestaurant = new Map(
+    restaurants.map((r) => [
+      r.id,
+      {
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        status: r.status,
+        revenueModel: r.revenueModel,
+        commissionRatePercent: r.commissionRatePercent,
+        // Whether THIS restaurant has connected its own Razorpay
+        // account — never expose the secret itself here.
+        razorpayConfigured: isRazorpayConfigured(r),
+        onlinePaymentsCollected: onlineUsageMap.get(r.id) || 0,
+        daily: [],
+        totalRevenue: 0,
+      },
+    ])
+  );
+  for (const row of revenueRows) {
     const entry = byRestaurant.get(row.restaurant_id);
     if (!entry) continue;
     const revenue = Number(row.revenue);

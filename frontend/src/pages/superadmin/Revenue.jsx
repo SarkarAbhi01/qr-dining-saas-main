@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { ShieldCheck, ShieldOff } from 'lucide-react';
 
 import { superadminApi } from '@/api/superadmin';
 import StatCard from '@/components/StatCard';
@@ -41,6 +42,7 @@ export default function Revenue() {
     (sum, r) => sum + (r.estimatedCommissionEarned || 0),
     0
   );
+  const onlineConfiguredCount = rows.filter((r) => r.razorpayConfigured).length;
 
   return (
     <div className="p-4 md:p-6 max-w-5xl">
@@ -48,7 +50,7 @@ export default function Revenue() {
         <div>
           <h1 className="font-display text-2xl text-ink mb-1">Revenue by Restaurant</h1>
           <p className="text-sm text-slate">
-            Who's on Commission vs. a Fixed Plan, and what each has generated.
+            Who's on Commission vs. a Fixed Plan, and which ones have online payment set up.
           </p>
         </div>
         <div className="flex gap-1">
@@ -66,7 +68,7 @@ export default function Revenue() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <StatCard label="On Commission" value={commissionRestaurants.length} accent="saffron" />
         <StatCard label="On Fixed Fee" value={monthlyFeeRestaurants.length} accent="cobalt" />
         <StatCard
@@ -79,6 +81,12 @@ export default function Revenue() {
           label="Total Restaurant Revenue"
           value={`₹${rows.reduce((s, r) => s + r.totalRevenue, 0).toLocaleString()}`}
           hint={`Last ${days} days`}
+        />
+        <StatCard
+          label="Online Payment Set Up"
+          value={`${onlineConfiguredCount} / ${rows.length}`}
+          accent={onlineConfiguredCount > 0 ? 'basil' : undefined}
+          hint="Restaurants with Razorpay connected"
         />
       </div>
 
@@ -96,6 +104,7 @@ export default function Revenue() {
                 <th className="px-4 py-3 font-medium text-right">Rate</th>
                 <th className="px-4 py-3 font-medium text-right">Revenue ({days}d)</th>
                 <th className="px-4 py-3 font-medium text-right">Commission Owed</th>
+                <th className="px-4 py-3 font-medium">Online Payment</th>
               </tr>
             </thead>
             <tbody>
@@ -127,6 +136,22 @@ export default function Revenue() {
                       <span className="text-slate">—</span>
                     )}
                   </td>
+                  <td className="px-4 py-3">
+                    {r.razorpayConfigured ? (
+                      <span className="flex items-center gap-1 text-xs font-medium text-basil">
+                        <ShieldCheck size={13} /> Configured
+                        {r.onlinePaymentsCollected > 0 && (
+                          <span className="text-slate font-normal">
+                            &nbsp;· {r.onlinePaymentsCollected} used
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-xs text-slate">
+                        <ShieldOff size={13} /> Not set up
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -137,7 +162,9 @@ export default function Revenue() {
       <p className="text-xs text-slate mt-3">
         "Commission Owed" is an estimate — order revenue collected × this restaurant's commission
         rate — for restaurants on the Commission model. Restaurants on a Fixed Fee plan don't accrue
-        commission here; their charge comes from their assigned plan instead.
+        commission here; their charge comes from their assigned plan instead. "Online Payment" shows
+        whether a restaurant has connected their own Razorpay account, and how many payments in this
+        window actually went through an online method (Card/UPI-online/Wallet) versus cash.
       </p>
     </div>
   );

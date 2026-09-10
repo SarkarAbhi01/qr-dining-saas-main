@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { Banknote, Check, Wallet } from 'lucide-react';
+import { Banknote, Check, Wallet, Tag } from 'lucide-react';
 
 import { waiterApi } from '@/api/waiter';
 import { useSocket } from '@/sockets/useSocket';
@@ -13,6 +13,8 @@ export default function Payments() {
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(null);
   const [settleTable, setSettleTable] = useState(null);
+  const [discountFor, setDiscountFor] = useState(null); // payment id currently showing its discount input
+  const [discounts, setDiscounts] = useState({}); // paymentId -> { amount, reason }
 
   const load = useCallback(() => {
     Promise.all([waiterApi.listPendingPayments(), waiterApi.listTables()])
@@ -37,14 +39,23 @@ export default function Payments() {
     'order:new': load,
   });
 
-  async function handleConfirm(id) {
-    setConfirming(id);
+  function updateDiscount(paymentId, field, value) {
+    setDiscounts((prev) => ({ ...prev, [paymentId]: { ...prev[paymentId], [field]: value } }));
+  }
+
+  async function handleConfirm(payment) {
+    const d = discounts[payment.id] || {};
+    const discountAmount = Number(d.amount) || 0;
+    setConfirming(payment.id);
     try {
-      const { sessionClosed } = await waiterApi.confirmPayment(id);
-      setPayments((prev) => prev.filter((p) => p.id !== id));
+      const { sessionClosed } = await waiterApi.confirmPayment(payment.id, {
+        discountAmount: discountAmount > 0 ? discountAmount : undefined,
+        discountReason: discountAmount > 0 ? d.reason || undefined : undefined,
+      });
+      setPayments((prev) => prev.filter((p) => p.id !== payment.id));
       toast.success(sessionClosed ? 'Table settled and freed up' : 'Payment confirmed');
-    } catch {
-      toast.error('Failed to confirm payment');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to confirm payment');
     } finally {
       setConfirming(null);
     }
@@ -57,7 +68,8 @@ export default function Payments() {
       <h1 className="font-display text-2xl text-ink mb-1">Payment Confirmations</h1>
       <p className="text-sm text-slate mb-4">
         Confirm cash a customer requested from their phone, or settle a table you served
-        manually — either way, the table frees up automatically once paid.
+        manually — either way, the table frees up automatically once paid. A discount can be
+        applied here or when settling directly.
       </p>
 
       {loading ? (
@@ -102,32 +114,79 @@ export default function Payments() {
             <p className="text-sm text-slate">No payments waiting for collection.</p>
           ) : (
             <div className="space-y-3">
-              {payments.map((p) => (
-                <div
-                  key={p.id}
-                  className="ticket-edge bg-white border border-saffron/30 rounded-ticket p-4 mt-2 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-saffron/15 flex items-center justify-center text-saffron-dark">
-                      <Banknote size={16} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-ink">
-                        Table {p.diningSession?.table?.tableNumber}
-                        {p.billSplitShare?.label ? ` — ${p.billSplitShare.label}` : ''}
-                      </p>
-                      <p className="font-mono text-lg text-ink">₹{Number(p.amount).toFixed(2)}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleConfirm(p.id)}
-                    disabled={confirming === p.id}
-                    className="flex items-center gap-1.5 bg-basil text-white rounded px-3 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 shrink-0"
+              {payments.map((p) => {
+                const d = discounts[p.id] || {};
+                const discountAmount = Math.min(Number(d.amount) || 0, Number(p.amount));
+                const payable = Math.max(0, Number(p.amount) - discountAmount);
+                return (
+                  <div
+                    key={p.id}
+                    className="ticket-edge bg-white border border-saffron/30 rounded-ticket p-4 mt-2"
                   >
-                    <Check size={15} /> {confirming === p.id ? 'Confirming…' : 'Collected'}
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-saffron/15 flex items-center justify-center text-saffron-dark">
+                          <Banknote size={16} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-ink">
+                            Table {p.diningSession?.table?.tableNumber}
+                            {p.billSplitShare?.label ? ` — ${p.billSplitShare.label}` : ''}
+                          </p>
+                          {discountAmount > 0 ? (
+                            <p className="font-mono text-sm">
+                              <span className="line-through text-slate/60">₹{Number(p.amount).toFixed(2)}</span>{' '}
+                              <span className="text-basil font-semibold">₹{payable.toFixed(2)}</span>
+                            </p>
+                          ) : (
+                            <p className="font-mono text-lg text-ink">₹{Number(p.amount).toFixed(2)}</p>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleConfirm(p)}
+                        disabled={confirming === p.id}
+                        className="flex items-center gap-1.5 bg-basil text-white rounded px-3 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 shrink-0"
+                      >
+                        <Check size={15} /> {confirming === p.id ? 'Confirming…' : `Collected ₹${payable.toFixed(2)}`}
+                      </button>
+                    </div>
+
+                    {discountFor === p.id ? (
+                      <div className="mt-3 pt-3 border-t border-line space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-slate">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max={p.amount}
+                            step="0.01"
+                            value={d.amount || ''}
+                            onChange={(e) => updateDiscount(p.id, 'amount', e.target.value)}
+                            placeholder="Discount amount"
+                            autoFocus
+                            className="flex-1 border border-line rounded px-3 py-1.5 text-sm"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          value={d.reason || ''}
+                          onChange={(e) => updateDiscount(p.id, 'reason', e.target.value)}
+                          placeholder="Reason (optional)"
+                          className="w-full border border-line rounded px-3 py-1.5 text-sm"
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setDiscountFor(p.id)}
+                        className="mt-2 flex items-center gap-1 text-xs text-slate hover:text-ink"
+                      >
+                        <Tag size={12} /> Apply a discount
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </>

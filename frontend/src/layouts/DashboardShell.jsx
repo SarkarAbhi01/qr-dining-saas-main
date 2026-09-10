@@ -1,5 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom';
-import { LogOut, Volume2, VolumeX } from 'lucide-react';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { LogOut, Volume2, VolumeX, ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
@@ -25,6 +25,14 @@ export default function DashboardShell({ title, navItems, children }) {
   const { user, logout } = useAuthStore();
   const [soundOn, setSoundOn] = useState(isSoundEnabled());
   const { style: themeStyle } = useRestaurantTheme();
+
+  // This shell is shared by Owner's own dashboard AND the Waiter
+  // dashboard (Owner/Manager can now step into the Waiter view — see
+  // App.jsx). When it's rendering the Waiter shell for someone whose
+  // real home is the Owner dashboard, offer a way back that doesn't
+  // require logging out entirely.
+  const isVisitingAsOwnerOrManager =
+    title === 'Waiter' && (user?.role === 'OWNER' || user?.role === 'MANAGER');
 
   function toggleSound() {
     const next = !soundOn;
@@ -67,6 +75,15 @@ export default function DashboardShell({ title, navItems, children }) {
               QR Dining
             </p>
             <h2 className="font-display text-lg text-ink leading-tight">{title}</h2>
+            {isVisitingAsOwnerOrManager && (
+              <Link
+                to="/owner"
+                className="inline-flex items-center gap-1 text-xs text-slate hover:text-ink mt-1.5"
+                title="Back to your dashboard — you'll stay signed in"
+              >
+                <ArrowLeft size={12} /> My dashboard
+              </Link>
+            )}
           </div>
           <button
             onClick={toggleSound}
@@ -98,7 +115,10 @@ export default function DashboardShell({ title, navItems, children }) {
         </nav>
 
         <div className="px-3 py-4 border-t border-line">
-          <p className="px-3 text-xs text-slate mb-2 truncate">{user?.email}</p>
+          <p className="px-3 text-xs text-ink font-medium truncate">{user?.name}</p>
+          <p className="px-3 text-[11px] text-slate mb-2 truncate">
+            {user?.email} · {user?.role === 'OWNER' ? 'Owner' : user?.role === 'MANAGER' ? 'Manager' : user?.role === 'WAITER' ? 'Waiter' : user?.role}
+          </p>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium text-chili hover:bg-chili-soft transition-colors"
@@ -115,7 +135,14 @@ export default function DashboardShell({ title, navItems, children }) {
           className="md:hidden sticky top-0 z-10 border-b border-line px-4 py-3 flex items-center justify-between"
           style={{ backgroundColor: 'var(--staff-header)' }}
         >
-          <h2 className="font-display text-lg text-ink">{title}</h2>
+          <div className="flex items-center gap-2">
+            {isVisitingAsOwnerOrManager && (
+              <Link to="/owner" className="text-slate" title="Back to your dashboard">
+                <ArrowLeft size={18} />
+              </Link>
+            )}
+            <h2 className="font-display text-lg text-ink">{title}</h2>
+          </div>
           <div className="flex items-center gap-3">
             <button onClick={toggleSound} className="text-slate" title="Toggle alert sounds">
               {soundOn ? <Volume2 size={18} /> : <VolumeX size={18} />}
