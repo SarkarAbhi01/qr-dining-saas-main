@@ -110,11 +110,15 @@ export function buildKotHtml(order) {
  * several separate orders before the bill is requested.
  *
  * `amountPaid`, when provided, is the NET amount actually charged
- * (i.e. already reflecting any discount) and is what's printed as the
- * final Total — the receipt itself never mentions a discount was
- * applied, it just shows the correct amount the customer actually
- * paid. When omitted (no discount involved), the Total falls back to
- * subtotal + tax as before.
+ * (i.e. already reflecting any discount). In that case the receipt
+ * intentionally DROPS the Subtotal/Tax breakdown entirely and prints
+ * only the item lines plus a single final Total equal to `amountPaid`
+ * — showing a Subtotal that doesn't match the Total (e.g. "Subtotal
+ * ₹22 … Total ₹20") would silently reveal that something was deducted
+ * even without the word "discount" anywhere on the page, which is
+ * exactly what this must avoid. When `amountPaid` is omitted (no
+ * discount involved), the normal Subtotal + Tax + Total breakdown is
+ * shown as before.
  */
 export function buildBillHtml({ restaurant, table, orders, amountPaid }) {
   let subtotal = 0;
@@ -134,8 +138,17 @@ export function buildBillHtml({ restaurant, table, orders, amountPaid }) {
     subtotal += Number(o.subtotal || 0);
     tax += Number(o.taxAmount || 0);
   });
-  const computedTotal = subtotal + tax;
-  const total = amountPaid != null ? Number(amountPaid) : computedTotal;
+
+  const hasDiscount = amountPaid != null;
+  const total = hasDiscount ? Number(amountPaid) : subtotal + tax;
+
+  // Only render a breakdown line when it won't disagree with the final
+  // Total — otherwise the gap itself is the tell.
+  const breakdownHtml = hasDiscount
+    ? ''
+    : `<div class="row"><span>Subtotal</span><span>₹${subtotal.toFixed(2)}</span></div>
+       ${tax > 0 ? `<div class="row"><span>Tax</span><span>₹${tax.toFixed(2)}</span></div>` : ''}
+       <div class="divider"></div>`;
 
   return `<!DOCTYPE html><html><head><title>Bill</title><style>${RECEIPT_STYLES}</style></head><body>
     <h1>${escapeHtml(restaurant?.name || 'Bill')}</h1>
@@ -143,9 +156,7 @@ export function buildBillHtml({ restaurant, table, orders, amountPaid }) {
     <div class="divider"></div>
     <div class="items">${rows}</div>
     <div class="divider"></div>
-    <div class="row"><span>Subtotal</span><span>₹${subtotal.toFixed(2)}</span></div>
-    ${tax > 0 ? `<div class="row"><span>Tax</span><span>₹${tax.toFixed(2)}</span></div>` : ''}
-    <div class="divider"></div>
+    ${breakdownHtml}
     <div class="row total-row"><span>Total</span><span>₹${total.toFixed(2)}</span></div>
     <div class="divider"></div>
     <p class="center muted">Thank you for dining with us!</p>

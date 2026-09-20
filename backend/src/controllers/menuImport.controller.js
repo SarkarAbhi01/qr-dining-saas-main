@@ -6,6 +6,25 @@ const { assertItemNameNotDuplicate } = require('./menuItem.controller');
 
 const VALID_TYPES = ['VEG', 'NON_VEG', 'EGG', 'VEGAN'];
 
+// Menu import/template-download share the same SuperAdmin-controlled
+// switch as the Reports "Excel" button (Restaurant.excelExportEnabled)
+// — from a SuperAdmin's point of view it's one "can this owner use our
+// Excel/CSV features" toggle. Enforced here on the backend (not just
+// hidden in the UI — see Menu.jsx) so the block actually holds even if
+// someone calls the API directly.
+async function assertExcelFeatureEnabled(restaurantId) {
+  const restaurant = await prisma.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { excelExportEnabled: true },
+  });
+  if (!restaurant) throw ApiError.notFound('Restaurant not found');
+  if (restaurant.excelExportEnabled === false) {
+    throw ApiError.forbidden(
+      'Excel/CSV menu import isn\'t enabled for your account — ask the platform admin to turn it on'
+    );
+  }
+}
+
 // Accepts a handful of reasonable header spellings so an Owner (or
 // whoever built their spreadsheet) doesn't have to match our column
 // names exactly — normalized to lowercase/no-space for the lookup.
@@ -81,6 +100,7 @@ function parseWorkbook(buffer) {
 // forms, so an import can never (re)introduce the duplicates bug).
 async function importMenu(req, res) {
   if (!req.file) throw ApiError.badRequest('Upload a .csv, .xlsx, or .xls file under the "file" field');
+  await assertExcelFeatureEnabled(req.restaurantId);
 
   let rows;
   try {
@@ -177,7 +197,9 @@ async function importMenu(req, res) {
 // GET /api/restaurant/menu/import/template — a starter .xlsx an Owner
 // can fill in and re-upload, with the exact column names the importer
 // recognizes plus one example row.
-function downloadImportTemplate(req, res) {
+async function downloadImportTemplate(req, res) {
+  await assertExcelFeatureEnabled(req.restaurantId);
+
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet([
     {

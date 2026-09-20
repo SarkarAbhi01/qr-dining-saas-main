@@ -25,6 +25,22 @@ export default function Menu() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const fileInputRef = useRef(null);
+  // SuperAdmin-controlled — hides/disables both the Import and the
+  // template Download buttons for this restaurant when off (see
+  // Restaurant.excelExportEnabled / superadmin PermissionsCard.jsx).
+  // Also enforced server-side in menuImport.controller.js, so this
+  // isn't just a UI-level hide.
+  const [excelEnabled, setExcelEnabled] = useState(true);
+
+  useEffect(() => {
+    restaurantApi
+      .getPermissions()
+      .then((data) => setExcelEnabled(data.excelExportEnabled !== false))
+      .catch(() => {
+        /* fail open on this particular fetch — the backend still
+           enforces the block regardless of what the button shows */
+      });
+  }, []);
 
   async function loadCategories() {
     const cats = await restaurantApi.listCategories();
@@ -196,21 +212,25 @@ export default function Menu() {
               className="hidden"
               onChange={handleImportFileChosen}
             />
-            <button
-              onClick={handlePickImportFile}
-              disabled={importing}
-              title="Bulk-add categories and items from an Excel/CSV file"
-              className="flex items-center gap-1.5 border border-line rounded px-3 py-2 text-sm font-medium text-ink hover:border-ink transition-colors disabled:opacity-50"
-            >
-              <Upload size={14} /> {importing ? 'Importing…' : 'Import Excel/CSV'}
-            </button>
-            <button
-              onClick={handleDownloadTemplate}
-              title="Download a starter template with the expected columns"
-              className="text-slate hover:text-ink p-2"
-            >
-              <Download size={15} />
-            </button>
+            {excelEnabled && (
+              <>
+                <button
+                  onClick={handlePickImportFile}
+                  disabled={importing}
+                  title="Bulk-add categories and items from an Excel/CSV file"
+                  className="flex items-center gap-1.5 border border-line rounded px-3 py-2 text-sm font-medium text-ink hover:border-ink transition-colors disabled:opacity-50"
+                >
+                  <Upload size={14} /> {importing ? 'Importing…' : 'Import Excel/CSV'}
+                </button>
+                <button
+                  onClick={handleDownloadTemplate}
+                  title="Download a starter template with the expected columns"
+                  className="text-slate hover:text-ink p-2"
+                >
+                  <Download size={15} />
+                </button>
+              </>
+            )}
             <button
               onClick={() => { setEditingItem(null); setItemModalOpen(true); }}
               disabled={!categories.length}
