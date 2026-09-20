@@ -155,6 +155,14 @@ enum WaiterCallType {
   ASSISTANCE
 }
 
+// Which format an Owner exported their restaurant's data in.
+enum BackupFormat {
+  EXCEL
+  PDF
+  TXT
+  SQL
+}
+
 // =====================================================================
 // PLATFORM LEVEL (Superadmin)
 // =====================================================================
@@ -220,6 +228,17 @@ model Restaurant {
   customMaxStaff        Int?
   customLimitsExpiresAt DateTime?
 
+  // --- SuperAdmin-controlled feature toggles for this tenant ---
+  // Excel/CSV export button on the Owner's Reports screen
+  // (ReportDownloadButtons). Defaults to on; SuperAdmin can switch it
+  // off for a specific restaurant (e.g. a plan restriction or a policy
+  // decision) without touching anything else about the account.
+  excelExportEnabled    Boolean   @default(true)
+  // Whether this Owner is allowed to trigger a full data backup
+  // (Excel/PDF/TXT/SQL) from their own Settings screen. Off by
+  // default — SuperAdmin must explicitly enable it per restaurant.
+  backupEnabled         Boolean   @default(false)
+
   // --- Custom branding: Owner-controlled colors/fonts applied live on
   // the customer-facing menu. Kept as a single flexible JSON blob
   // (rather than one column per property) so new theme knobs can be
@@ -251,6 +270,7 @@ model Restaurant {
   waiterCalls      WaiterCall[]
   invoices         Invoice[]
   feedback         Feedback[]
+  backups          Backup[]
 
   @@index([status])
   @@map("restaurants")
@@ -315,6 +335,34 @@ model Invoice {
   @@map("invoices")
 }
 
+// One data-export/backup run, triggered by an Owner from their Settings
+// screen (only when SuperAdmin has switched Restaurant.backupEnabled
+// on for them). `filePath`/`fileName` is the Owner's own copy in the
+// format they asked for; `bakFilePath`/`bakFileName` is the archival
+// copy that's created at the same time and surfaced to SuperAdmin —
+// named "{ownerName}_{date}.bak" — so the platform always keeps its
+// own record of a tenant's data independent of what the Owner does
+// with their copy afterward.
+model Backup {
+  id             String       @id @default(uuid())
+  restaurantId   String
+  restaurant     Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  requestedById  String
+  requestedBy    User         @relation("BackupRequestedBy", fields: [requestedById], references: [id])
+
+  format         BackupFormat
+  fileName       String
+  filePath       String       // absolute path on disk, outside the public /uploads tree
+  bakFileName    String
+  bakFilePath    String
+  sizeBytes      Int          @default(0)
+
+  createdAt      DateTime     @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@map("backups")
+}
+
 // =====================================================================
 // USERS & AUTH (RBAC)
 // =====================================================================
@@ -360,6 +408,7 @@ model User {
   chefComplaints   Feedback[]    @relation("FeedbackAboutChef")
   acknowledgedCalls WaiterCall[] @relation("AcknowledgedByWaiter")
   refreshTokens    RefreshToken[]
+  requestedBackups Backup[]      @relation("BackupRequestedBy")
 
   @@index([restaurantId, role])
   @@map("users")
@@ -454,6 +503,12 @@ model Category {
 
   menuItems    MenuItem[]
 
+  // DB-level safety net against duplicate categories. The application
+  // layer (category.controller.js) already rejects a name that matches
+  // an existing category case-insensitively — this unique index catches
+  // any exact-case duplicate that might otherwise slip through a race
+  // condition between two concurrent requests.
+  @@unique([restaurantId, name])
   @@index([restaurantId, sequence])
   @@map("categories")
 }
@@ -485,6 +540,9 @@ model MenuItem {
   modifierGroups ModifierGroup[]
   orderItems     OrderItem[]
 
+  // Same reasoning as Category.@@unique above — belt-and-suspenders
+  // against duplicate items landing in the same category.
+  @@unique([categoryId, name])
   @@index([restaurantId, categoryId, isAvailable])
   @@map("menu_items")
 }

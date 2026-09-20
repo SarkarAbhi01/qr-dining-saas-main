@@ -11,7 +11,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "node prisma/seed.js"
+    "prisma:seed": "node prisma/seed.js",
+    "dedupe:menu": "node scripts/dedupeMenuData.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -29,9 +30,11 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
+     "pdfkit": "^0.15.2",
     "socket.io": "^4.7.5",
     "stripe": "^16.8.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.4",
