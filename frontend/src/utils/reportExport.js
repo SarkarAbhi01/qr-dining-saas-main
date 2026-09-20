@@ -1,4 +1,22 @@
 /**
+ * Triggers a browser "Save As" for a Blob already fetched from the
+ * backend (axios `responseType: 'blob'`) — used for the Excel/CSV menu
+ * import template and backup file downloads, where the actual bytes
+ * come from the server rather than being built client-side like the
+ * CSV export below.
+ */
+export function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/**
  * Converts an array of flat objects into a CSV file and triggers a
  * browser download. Runs entirely client-side against data the report
  * page already has in memory — no round-trip to the backend needed

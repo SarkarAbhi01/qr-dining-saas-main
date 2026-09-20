@@ -108,8 +108,15 @@ export function buildKotHtml(order) {
  * checkout, itemizing every order placed during the whole sitting, not
  * just the most recent one, since a table's dining session can span
  * several separate orders before the bill is requested.
+ *
+ * `amountPaid`, when provided, is the NET amount actually charged
+ * (i.e. already reflecting any discount) and is what's printed as the
+ * final Total — the receipt itself never mentions a discount was
+ * applied, it just shows the correct amount the customer actually
+ * paid. When omitted (no discount involved), the Total falls back to
+ * subtotal + tax as before.
  */
-export function buildBillHtml({ restaurant, table, orders }) {
+export function buildBillHtml({ restaurant, table, orders, amountPaid }) {
   let subtotal = 0;
   let tax = 0;
   const rows = orders
@@ -127,7 +134,8 @@ export function buildBillHtml({ restaurant, table, orders }) {
     subtotal += Number(o.subtotal || 0);
     tax += Number(o.taxAmount || 0);
   });
-  const total = subtotal + tax;
+  const computedTotal = subtotal + tax;
+  const total = amountPaid != null ? Number(amountPaid) : computedTotal;
 
   return `<!DOCTYPE html><html><head><title>Bill</title><style>${RECEIPT_STYLES}</style></head><body>
     <h1>${escapeHtml(restaurant?.name || 'Bill')}</h1>

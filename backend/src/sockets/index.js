@@ -13,6 +13,10 @@
 //   restaurant:{restaurantId}:kitchen    -> KDS clients (Chef)
 //   restaurant:{restaurantId}:waiters    -> Waiter clients
 //   table:{tableId}                      -> that table's customer session
+//   superadmin                           -> every connected SuperAdmin
+//                                            (used to push new backup
+//                                            archives — see
+//                                            backup.controller.js)
 
 const { verifyAccessToken } = require('../utils/jwt');
 
@@ -49,6 +53,9 @@ function initSockets(io) {
       if (role === 'WAITER' || role === 'OWNER' || role === 'MANAGER') {
         socket.join(`restaurant:${restaurantId}:waiters`);
       }
+    }
+    if (socket.data.isStaff && socket.data.role === 'SUPERADMIN') {
+      socket.join('superadmin');
     }
 
     // Customer flow: join the room for their specific table so kitchen/

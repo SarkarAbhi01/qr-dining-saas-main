@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { KeyRound, CreditCard, ShieldCheck, ShieldOff } from 'lucide-react';
+import { KeyRound, CreditCard, ShieldCheck, ShieldOff, DatabaseBackup, Download } from 'lucide-react';
 
 import api from '@/api/client';
+import { restaurantApi } from '@/api/restaurant';
+import { downloadBlob } from '@/utils/reportExport';
 import { useAuthStore } from '@/store/authStore';
 
 export default function Settings() {
@@ -87,6 +89,7 @@ export default function Settings() {
       </div>
 
       {isOwner && <PaymentGatewaySection />}
+      {isOwner && <BackupSection />}
     </div>
   );
 }
@@ -182,6 +185,121 @@ function PaymentGatewaySection() {
             </button>
           </form>
         </>
+      )}
+    </div>
+  );
+}
+
+const BACKUP_FORMATS = [
+  { value: 'EXCEL', label: 'Excel (.xlsx)' },
+  { value: 'PDF', label: 'PDF' },
+  { value: 'TXT', label: 'Text (.txt)' },
+  { value: 'SQL', label: 'SQL' },
+];
+
+// Only rendered for the Owner, and only shows its actual content once
+// SuperAdmin has switched Restaurant.backupEnabled on (see
+// superadmin.controller.setPermissions / PermissionsCard.jsx) — an
+// Owner without that permission never sees the button at all.
+function BackupSection() {
+  const [enabled, setEnabled] = useState(null); // null = still checking
+  const [format, setFormat] = useState('EXCEL');
+  const [creating, setCreating] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+
+  useEffect(() => {
+    restaurantApi
+      .getPermissions()
+      .then((data) => setEnabled(!!data.backupEnabled))
+      .catch(() => setEnabled(false));
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) {
+      setLoadingHistory(false);
+      return;
+    }
+    restaurantApi
+      .listBackups()
+      .then(setHistory)
+      .catch(() => toast.error('Failed to load backup history'))
+      .finally(() => setLoadingHistory(false));
+  }, [enabled]);
+
+  async function handleCreateBackup() {
+    setCreating(true);
+    try {
+      const backup = await restaurantApi.createBackup(format);
+      setHistory((h) => [backup, ...h]);
+      toast.success('Backup created — a copy has also been archived with the platform admin');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create backup');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleDownload(backup) {
+    try {
+      const blob = await restaurantApi.downloadBackup(backup.id);
+      downloadBlob(blob, backup.fileName);
+    } catch (err) {
+      toast.error('Failed to download backup');
+    }
+  }
+
+  // Not enabled for this restaurant — SuperAdmin hasn't switched the
+  // toggle on yet, so this section stays invisible rather than showing
+  // a disabled/greyed-out state.
+  if (enabled === false || enabled === null) return null;
+
+  return (
+    <div className="ticket-edge bg-white border border-line rounded-ticket p-5 mt-2 mb-6">
+      <div className="flex items-center gap-2 mb-1">
+        <DatabaseBackup size={16} className="text-slate" />
+        <p className="text-sm font-medium text-ink">Data backup</p>
+      </div>
+      <p className="text-xs text-slate mb-4">
+        Export your menu, tables, staff, orders, and payment history. A copy is automatically
+        archived with the platform admin whenever you create one.
+      </p>
+
+      <div className="flex items-center gap-2 mb-4">
+        <select
+          value={format}
+          onChange={(e) => setFormat(e.target.value)}
+          className="border border-line rounded px-3 py-2 text-sm bg-white"
+        >
+          {BACKUP_FORMATS.map((f) => (
+            <option key={f.value} value={f.value}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={handleCreateBackup}
+          disabled={creating}
+          className="staff-menu-btn flex items-center gap-1.5 rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+        >
+          <DatabaseBackup size={14} /> {creating ? 'Generating…' : 'Backup now'}
+        </button>
+      </div>
+
+      {!loadingHistory && history.length > 0 && (
+        <div className="space-y-1.5 border-t border-line pt-3">
+          <p className="text-[11px] font-semibold text-slate uppercase tracking-wide mb-1">Recent backups</p>
+          {history.slice(0, 6).map((b) => (
+            <div key={b.id} className="flex items-center justify-between text-xs">
+              <span className="text-slate">
+                {b.format} · {new Date(b.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </span>
+              <button onClick={() => handleDownload(b)} className="flex items-center gap-1 text-cobalt hover:underline">
+                <Download size={12} /> Download
+              </button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

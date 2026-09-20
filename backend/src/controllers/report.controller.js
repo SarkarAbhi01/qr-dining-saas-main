@@ -310,6 +310,7 @@ async function paymentsCollected(req, res) {
     },
     include: {
       collectedBy: { select: { id: true, name: true, role: true } },
+      discountedBy: { select: { id: true, name: true, role: true } },
       diningSession: { include: { table: { select: { tableNumber: true } } } },
     },
     orderBy: { paidAt: 'desc' },
@@ -335,9 +336,21 @@ async function paymentsCollected(req, res) {
     success: true,
     data: {
       summary: Array.from(summaryMap.values()).sort((a, b) => b.totalCollected - a.totalCollected),
+      // Discount fields ARE surfaced here on purpose — this is the
+      // Owner-facing report, the opposite of the customer-facing
+      // printed bill (see waiter.controller.getSessionReceipt /
+      // print.js), which never mentions a discount was applied. This
+      // is also what makes a discount fully accountable: who applied
+      // it, how much, and why, even though the customer's copy just
+      // shows the final total.
       recent: payments.map((p) => ({
         id: p.id,
+        diningSessionId: p.diningSessionId,
         amount: Number(p.amount),
+        originalAmount: p.originalAmount != null ? Number(p.originalAmount) : null,
+        discountAmount: p.discountAmount != null ? Number(p.discountAmount) : null,
+        discountReason: p.discountReason || null,
+        discountedBy: p.discountedBy ? { id: p.discountedBy.id, name: p.discountedBy.name, role: p.discountedBy.role } : null,
         method: p.method,
         paidAt: p.paidAt,
         collectedBy: p.collectedBy ? { id: p.collectedBy.id, name: p.collectedBy.name, role: p.collectedBy.role } : null,

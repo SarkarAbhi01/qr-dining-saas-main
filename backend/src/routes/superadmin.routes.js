@@ -29,6 +29,11 @@ router.patch(
   validate(schemas.setCustomLimits),
   controller.setCustomLimits
 );
+router.patch(
+  '/restaurants/:id/permissions',
+  validate(schemas.setPermissions),
+  controller.setPermissions
+);
 
 // --- Owner / Manager credentials ---
 router.post(
@@ -46,5 +51,10 @@ router.patch('/plans/:id', validate(schemas.updatePlan), controller.updatePlan);
 // --- Reports ---
 router.get('/reports/overview', controller.globalOverview);
 router.get('/reports/restaurant-revenue', controller.restaurantRevenueReport);
+
+// --- Backups (archival .bak copies of every restaurant's data export) ---
+const backupController = require('../controllers/backup.controller');
+router.get('/backups', backupController.listAllBackups);
+router.get('/backups/:id/download', backupController.downloadBackupArchive);
 
 module.exports = router;

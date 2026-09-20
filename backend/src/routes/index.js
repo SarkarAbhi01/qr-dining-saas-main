@@ -12,6 +12,7 @@ router.use('/restaurant/kds', require('./kds.routes'));
 router.use('/restaurant/waiter', require('./waiter.routes'));
 router.use('/restaurant/theme', require('./theme.routes'));
 router.use('/restaurant/payment-gateway', require('./paymentGateway.routes'));
+router.use('/restaurant/backup', require('./backup.routes'));
 router.use('/restaurant', require('./restaurant.routes'));
 router.use('/customer', require('./customer.routes'));
 

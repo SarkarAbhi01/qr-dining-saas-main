@@ -27,6 +27,8 @@ function serializeRestaurant(r) {
     customMaxTables: r.customMaxTables,
     customMaxStaff: r.customMaxStaff,
     customLimitsExpiresAt: r.customLimitsExpiresAt,
+    excelExportEnabled: r.excelExportEnabled,
+    backupEnabled: r.backupEnabled,
     createdAt: r.createdAt,
     counts: r._count
       ? { tables: r._count.tables, users: r._count.users, orders: r._count.orders }
@@ -259,6 +261,29 @@ async function setCustomLimits(req, res) {
   res.json({ success: true, data: serializeRestaurant(restaurant) });
 }
 
+// PATCH /api/superadmin/restaurants/:id/permissions
+// { excelExportEnabled?, backupEnabled? }
+// Two independent tenant-level feature switches:
+//  - excelExportEnabled: shows/hides the Excel(CSV)/print export
+//    buttons on the Owner's Reports screen (ReportDownloadButtons).
+//  - backupEnabled: shows/hides the "Backup my data" action on the
+//    Owner's Settings screen (Excel/PDF/TXT/SQL export, which also
+//    drops a .bak archive copy in SuperAdmin's own Backups list).
+async function setPermissions(req, res) {
+  const { excelExportEnabled, backupEnabled } = req.body;
+
+  const restaurant = await prisma.restaurant.update({
+    where: { id: req.params.id },
+    data: {
+      ...(excelExportEnabled !== undefined ? { excelExportEnabled } : {}),
+      ...(backupEnabled !== undefined ? { backupEnabled } : {}),
+    },
+    include: { subscriptionPlan: true },
+  });
+
+  res.json({ success: true, data: serializeRestaurant(restaurant) });
+}
+
 // ---------------------------------------------------------------------
 // Owner / Manager credential management
 // ---------------------------------------------------------------------
@@ -455,6 +480,7 @@ module.exports = {
   assignPlan,
   setRevenueModel,
   setCustomLimits,
+  setPermissions,
   createCredential,
   resetPassword,
   listPlans,

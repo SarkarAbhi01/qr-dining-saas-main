@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Leaf, Drumstick, ArrowUp, ArrowDown } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Plus, Pencil, Trash2, Leaf, Drumstick, ArrowUp, ArrowDown, Upload, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import { restaurantApi } from '@/api/restaurant';
+import { downloadBlob } from '@/utils/reportExport';
 import Modal from '@/components/Modal';
 import MenuItemModal from '@/components/MenuItemModal';
 
@@ -20,6 +21,10 @@ export default function Menu() {
 
   const [itemModalOpen, setItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const fileInputRef = useRef(null);
 
   async function loadCategories() {
     const cats = await restaurantApi.listCategories();
@@ -99,6 +104,38 @@ export default function Menu() {
     }
   }
 
+  async function handleDownloadTemplate() {
+    try {
+      const blob = await restaurantApi.downloadImportTemplate();
+      downloadBlob(blob, 'menu-import-template.xlsx');
+    } catch (err) {
+      toast.error('Failed to download template');
+    }
+  }
+
+  function handlePickImportFile() {
+    fileInputRef.current?.click();
+  }
+
+  async function handleImportFileChosen(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file next time
+    if (!file) return;
+
+    setImporting(true);
+    try {
+      const result = await restaurantApi.importMenu(file);
+      setImportResult(result);
+      toast.success(`Imported ${result.itemsCreated} item${result.itemsCreated === 1 ? '' : 's'}`);
+      loadCategories();
+      loadItems();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to import file');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const visibleItems = items.filter((i) => i.categoryId === activeCategory);
 
   if (loading) return <div className="p-6 text-sm text-slate">Loading menu…</div>;
@@ -151,13 +188,37 @@ export default function Menu() {
           <h2 className="font-display text-lg text-ink">
             {categories.find((c) => c.id === activeCategory)?.name || 'Items'}
           </h2>
-          <button
-            onClick={() => { setEditingItem(null); setItemModalOpen(true); }}
-            disabled={!categories.length}
-            className="staff-menu-btn flex items-center gap-1.5 rounded px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
-          >
-            <Plus size={16} /> Add item
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              className="hidden"
+              onChange={handleImportFileChosen}
+            />
+            <button
+              onClick={handlePickImportFile}
+              disabled={importing}
+              title="Bulk-add categories and items from an Excel/CSV file"
+              className="flex items-center gap-1.5 border border-line rounded px-3 py-2 text-sm font-medium text-ink hover:border-ink transition-colors disabled:opacity-50"
+            >
+              <Upload size={14} /> {importing ? 'Importing…' : 'Import Excel/CSV'}
+            </button>
+            <button
+              onClick={handleDownloadTemplate}
+              title="Download a starter template with the expected columns"
+              className="text-slate hover:text-ink p-2"
+            >
+              <Download size={15} />
+            </button>
+            <button
+              onClick={() => { setEditingItem(null); setItemModalOpen(true); }}
+              disabled={!categories.length}
+              className="staff-menu-btn flex items-center gap-1.5 rounded px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              <Plus size={16} /> Add item
+            </button>
+          </div>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-3">
@@ -241,6 +302,54 @@ export default function Menu() {
         editingItem={editingItem}
         onSaved={loadItems}
       />
+
+      {/* --- Import results --- */}
+      <Modal open={!!importResult} onClose={() => setImportResult(null)} title="Import complete">
+        {importResult && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="bg-basil-soft text-basil rounded-ticket px-3 py-2">
+                <p className="font-display text-xl">{importResult.itemsCreated}</p>
+                <p className="text-xs">Items added</p>
+              </div>
+              <div className="bg-paper-dim text-ink rounded-ticket px-3 py-2">
+                <p className="font-display text-xl">{importResult.categoriesCreated}</p>
+                <p className="text-xs">New categories</p>
+              </div>
+              <div className="bg-paper-dim text-ink rounded-ticket px-3 py-2">
+                <p className="font-display text-xl">{importResult.categoriesReused}</p>
+                <p className="text-xs">Existing categories reused</p>
+              </div>
+              <div className="bg-saffron/10 text-saffron-dark rounded-ticket px-3 py-2">
+                <p className="font-display text-xl">{importResult.itemsSkipped}</p>
+                <p className="text-xs">Duplicates skipped</p>
+              </div>
+            </div>
+
+            {importResult.rowErrors?.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate uppercase tracking-wide mb-1.5">
+                  Rows that need a look ({importResult.rowErrors.length})
+                </p>
+                <div className="max-h-48 overflow-y-auto space-y-1 border border-line rounded-ticket p-2">
+                  {importResult.rowErrors.map((e, i) => (
+                    <p key={i} className="text-xs text-slate">
+                      <span className="font-mono text-chili">Row {e.row}:</span> {e.message}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => setImportResult(null)}
+              className="staff-menu-btn w-full rounded px-3 py-2.5 text-sm font-medium"
+            >
+              Done
+            </button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

@@ -26,6 +26,9 @@ export const superadminApi = {
   setCustomLimits: (id, payload) =>
     api.patch(`/superadmin/restaurants/${id}/custom-limits`, payload).then((r) => r.data.data),
 
+  setPermissions: (id, payload) =>
+    api.patch(`/superadmin/restaurants/${id}/permissions`, payload).then((r) => r.data.data),
+
   deleteRestaurant: (id, reason) =>
     api.delete(`/superadmin/restaurants/${id}`, { data: { reason } }).then((r) => r.data),
 
@@ -40,7 +43,12 @@ export const superadminApi = {
   createPlan: (payload) => api.post('/superadmin/plans', payload).then((r) => r.data.data),
 
   updatePlan: (id, payload) => api.patch(`/superadmin/plans/${id}`, payload).then((r) => r.data.data),
-  
+
   restaurantRevenueReport: (days) =>
     api.get('/superadmin/reports/restaurant-revenue', { params: { days } }).then((r) => r.data.data),
+
+  // --- Backups (archival .bak copies) ---
+  listBackups: () => api.get('/superadmin/backups').then((r) => r.data.data),
+  downloadBackupArchive: (id) =>
+    api.get(`/superadmin/backups/${id}/download`, { responseType: 'blob' }).then((r) => r.data),
 };

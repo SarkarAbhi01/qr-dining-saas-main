@@ -76,6 +76,14 @@ const setCustomLimits = Joi.object({
   }),
 });
 
+// Two independent tenant-level feature switches — see the controller
+// comment on setPermissions. Both optional so either can be toggled
+// without resending the other's current value.
+const setPermissions = Joi.object({
+  excelExportEnabled: Joi.boolean(),
+  backupEnabled: Joi.boolean(),
+}).min(1);
+
 const createCredential = Joi.object({
   name: Joi.string().min(2).max(120).required(),
   email: Joi.string().email().required(),
@@ -114,6 +122,7 @@ module.exports = {
   assignPlan,
   setRevenueModel,
   setCustomLimits,
+  setPermissions,
   createCredential,
   createPlan,
   updatePlan,

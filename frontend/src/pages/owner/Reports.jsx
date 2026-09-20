@@ -11,8 +11,12 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
+import { Printer, Tag } from 'lucide-react';
 
 import { reportsApi } from '@/api/reports';
+import { restaurantApi } from '@/api/restaurant';
+import { waiterApi } from '@/api/waiter';
+import { printReceipt, buildBillHtml } from '@/utils/print';
 import StatCard from '@/components/StatCard';
 import ReportDownloadButtons from '@/components/ReportDownloadButtons';
 
@@ -60,6 +64,35 @@ export default function Reports() {
   const [payments, setPayments] = useState({ summary: [], recent: [] });
   const [methodBreakdown, setMethodBreakdown] = useState({ breakdown: [], totalRevenue: 0 });
   const [loading, setLoading] = useState(true);
+  const [excelEnabled, setExcelEnabled] = useState(true);
+  const [reprintingId, setReprintingId] = useState(null);
+
+  useEffect(() => {
+    restaurantApi
+      .getPermissions()
+      .then((data) => setExcelEnabled(data.excelExportEnabled !== false))
+      .catch(() => {
+        /* fail open — don't hide the export buttons just because this
+           particular fetch failed; the backend still enforces nothing
+           extra is exposed */
+      });
+  }, []);
+
+  async function handleReprint(payment) {
+    if (!payment.diningSessionId) {
+      toast.error("Can't reprint — this payment isn't tied to a table sitting");
+      return;
+    }
+    setReprintingId(payment.id);
+    try {
+      const { restaurant, table, orders, amountPaid } = await waiterApi.getSessionReceipt(payment.diningSessionId);
+      printReceipt(buildBillHtml({ restaurant, table, orders, amountPaid }));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to load bill for reprinting');
+    } finally {
+      setReprintingId(null);
+    }
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -120,6 +153,7 @@ export default function Reports() {
           <p className="text-xs font-semibold text-slate uppercase tracking-wide">Revenue</p>
           <div className="flex items-center gap-3">
             <ReportDownloadButtons
+              excelEnabled={excelEnabled}
               title="Revenue"
               rows={revenueChartData.map((r) => ({ Date: r.label, Revenue: r.revenue }))}
             />
@@ -166,6 +200,7 @@ export default function Reports() {
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs font-semibold text-slate uppercase tracking-wide">Top Selling Items</p>
             <ReportDownloadButtons
+              excelEnabled={excelEnabled}
               title="Top Selling Items"
               rows={topItems.map((item, idx) => ({
                 Rank: idx + 1,
@@ -205,6 +240,7 @@ export default function Reports() {
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs font-semibold text-slate uppercase tracking-wide">Peak Hours (30d)</p>
             <ReportDownloadButtons
+              excelEnabled={excelEnabled}
               title="Peak Hours"
               rows={peakHoursData.map((h) => ({ Hour: h.label, Orders: h.orders }))}
             />
@@ -237,6 +273,7 @@ export default function Reports() {
         <div className="flex items-center justify-between mb-4">
           <p className="text-xs font-semibold text-slate uppercase tracking-wide">Waiter Performance</p>
           <ReportDownloadButtons
+            excelEnabled={excelEnabled}
             title="Waiter Performance"
             rows={staff.map((s) => ({
               Waiter: s.name,
@@ -286,6 +323,7 @@ export default function Reports() {
         <div className="flex items-center justify-between mb-4">
           <p className="text-xs font-semibold text-slate uppercase tracking-wide">Chef Performance</p>
           <ReportDownloadButtons
+            excelEnabled={excelEnabled}
             title="Chef Performance"
             rows={chefs.map((c) => ({
               Chef: c.name,
@@ -329,6 +367,7 @@ export default function Reports() {
             Revenue by Payment Method
           </p>
           <ReportDownloadButtons
+            excelEnabled={excelEnabled}
             title="Revenue by Payment Method"
             rows={methodBreakdown.breakdown.map((m) => ({
               Method: METHOD_LABEL[m.method] || m.method,
@@ -368,6 +407,7 @@ export default function Reports() {
         <div className="flex items-center justify-between mb-4">
           <p className="text-xs font-semibold text-slate uppercase tracking-wide">Payments Collected</p>
           <ReportDownloadButtons
+            excelEnabled={excelEnabled}
             title="Payments Collected"
             rows={payments.summary.map((p) => ({
               'Collected By': p.name,
@@ -405,12 +445,37 @@ export default function Reports() {
             <p className="text-[11px] font-semibold text-slate uppercase tracking-wide mb-2">Recent Payments</p>
             <div className="space-y-1.5">
               {payments.recent.slice(0, 8).map((p) => (
-                <div key={p.id} className="flex items-center justify-between text-xs text-slate">
-                  <span>
+                <div key={p.id} className="flex items-center justify-between text-xs text-slate gap-2 py-1">
+                  <span className="min-w-0">
                     Table {p.tableNumber ?? '—'} · {p.collectedBy?.name ?? 'Unknown'}
+                    {p.discountAmount > 0 && (
+                      <span
+                        className="inline-flex items-center gap-1 ml-2 text-[10px] font-medium text-saffron-dark bg-saffron/10 px-1.5 py-0.5 rounded-full"
+                        title={p.discountReason || 'Discount applied'}
+                      >
+                        <Tag size={9} /> ₹{p.discountAmount.toLocaleString()} off
+                        {p.discountedBy?.name ? ` by ${p.discountedBy.name}` : ''}
+                      </span>
+                    )}
                   </span>
-                  <span className="font-mono">
-                    ₹{p.amount.toLocaleString()} · {new Date(p.paidAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  <span className="flex items-center gap-2 shrink-0">
+                    <span className="font-mono">
+                      {p.discountAmount > 0 && (
+                        <span className="line-through text-slate/50 mr-1">
+                          ₹{(p.originalAmount ?? p.amount + p.discountAmount).toLocaleString()}
+                        </span>
+                      )}
+                      ₹{p.amount.toLocaleString()} ·{' '}
+                      {new Date(p.paidAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <button
+                      onClick={() => handleReprint(p)}
+                      disabled={reprintingId === p.id}
+                      title="Reprint bill for the customer"
+                      className="text-slate hover:text-ink disabled:opacity-40"
+                    >
+                      <Printer size={13} />
+                    </button>
                   </span>
                 </div>
               ))}

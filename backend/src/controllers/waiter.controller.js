@@ -349,6 +349,46 @@ async function getTableBill(req, res) {
   res.json({ success: true, data: { restaurant, table, orders } });
 }
 
+// GET /api/restaurant/waiter/sessions/:sessionId/receipt
+//
+// Reprint support: fetches everything needed to reprint a customer's
+// bill for a sitting that's ALREADY been settled (unlike getTableBill
+// above, which only looks at the table's current/open sitting) — used
+// by the Owner's Reports screen ("view/reprint") and by a Manager who
+// needs to hand a customer a fresh copy. Deliberately returns only
+// `amountPaid` (the net amount actually collected) and never the
+// discount fields themselves — the printed bill must never mention a
+// discount even on reprint, it should just show the correct final
+// total, exactly like the original printout did.
+async function getSessionReceipt(req, res) {
+  const session = await prisma.diningSession.findFirst({
+    where: { id: req.params.sessionId, restaurantId: req.restaurantId },
+    include: { table: true },
+  });
+  if (!session) throw ApiError.notFound('Dining session not found');
+
+  const [orders, payments, restaurant] = await Promise.all([
+    prisma.order.findMany({
+      where: { diningSessionId: session.id },
+      include: { items: { include: { menuItem: true, modifiers: { include: { modifierOption: true } } } } },
+      orderBy: { placedAt: 'asc' },
+    }),
+    prisma.payment.findMany({
+      where: { diningSessionId: session.id, status: 'SUCCEEDED' },
+    }),
+    prisma.restaurant.findUnique({ where: { id: req.restaurantId }, select: { name: true } }),
+  ]);
+
+  // Net amount actually collected across every settled payment on this
+  // sitting — already reflects any discount, without naming it as one.
+  const amountPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+  res.json({
+    success: true,
+    data: { restaurant, table: session.table, orders, amountPaid: payments.length ? amountPaid : null },
+  });
+}
+
 // POST /api/restaurant/waiter/tables/:tableId/settle-payment  { method }
 //
 // The gap this closes: every other checkout path (cash, online) is
@@ -444,6 +484,7 @@ module.exports = {
   createManualOrder,
   getMenu,
   getTableBill,
+  getSessionReceipt,
   listCalls,
   acknowledgeCall,
   resolveCall,

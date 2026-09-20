@@ -5,10 +5,11 @@ const authorize = require('../middlewares/authorize');
 const tenantScope = require('../middlewares/tenantScope');
 const validate = require('../middlewares/validate');
 const parseJsonFields = require('../middlewares/parseJsonFields');
-const { uploadMenuItemImage } = require('../middlewares/upload');
+const { uploadMenuItemImage, uploadMenuImportFile } = require('../middlewares/upload');
 
 const categoryController = require('../controllers/category.controller');
 const menuItemController = require('../controllers/menuItem.controller');
+const menuImportController = require('../controllers/menuImport.controller');
 const tableController = require('../controllers/table.controller');
 const staffController = require('../controllers/staff.controller');
 const reportController = require('../controllers/report.controller');
@@ -50,6 +51,10 @@ router.patch(
 );
 router.patch('/menu-items/:id/availability', menuItemController.toggleAvailability);
 router.delete('/menu-items/:id', menuItemController.deleteMenuItem);
+
+// --- Bulk menu setup from Excel/CSV (new-owner onboarding, restocking) ---
+router.get('/menu/import/template', menuImportController.downloadImportTemplate);
+router.post('/menu/import', uploadMenuImportFile.single('file'), menuImportController.importMenu);
 
 // --- Tables & QR ---
 router.get('/tables', tableController.listTables);

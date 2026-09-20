@@ -38,4 +38,24 @@ export const restaurantApi = {
 
   // --- Feedback ---
   listFeedback: (params) => api.get('/restaurant/feedback', { params }).then((r) => r.data.data),
+
+  // --- Menu bulk import (Excel/CSV) ---
+  importMenu: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api
+      .post('/restaurant/menu/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+      .then((r) => r.data.data);
+  },
+  downloadImportTemplate: () =>
+    api.get('/restaurant/menu/import/template', { responseType: 'blob' }).then((r) => r.data),
+
+  // --- Permissions (SuperAdmin-controlled feature toggles) ---
+  getPermissions: () => api.get('/restaurant/billing').then((r) => r.data.data),
+
+  // --- Data backup (gated by getPermissions().backupEnabled) ---
+  listBackups: () => api.get('/restaurant/backup').then((r) => r.data.data),
+  createBackup: (format) => api.post('/restaurant/backup', { format }).then((r) => r.data.data),
+  downloadBackup: (id) =>
+    api.get(`/restaurant/backup/${id}/download`, { responseType: 'blob' }).then((r) => r.data),
 };

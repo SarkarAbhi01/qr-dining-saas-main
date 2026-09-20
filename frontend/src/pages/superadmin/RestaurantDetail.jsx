@@ -9,6 +9,7 @@ import CredentialRevealModal from '@/components/CredentialRevealModal';
 import PlanAssignmentCard from '@/components/superadmin/PlanAssignmentCard';
 import RevenueModelCard from '@/components/superadmin/RevenueModelCard';
 import CustomLimitsCard from '@/components/superadmin/CustomLimitsCard';
+import PermissionsCard from '@/components/superadmin/PermissionsCard';
 
 const STATUS_OPTIONS = ['TRIAL', 'ACTIVE', 'SUSPENDED', 'CANCELLED'];
 const REASON_REQUIRED = ['SUSPENDED', 'CANCELLED'];
@@ -151,6 +152,10 @@ export default function RestaurantDetail() {
 
       <div className="mb-4">
         <CustomLimitsCard restaurant={restaurant} onUpdated={setRestaurant} />
+      </div>
+
+      <div className="mb-4">
+        <PermissionsCard restaurant={restaurant} onUpdated={setRestaurant} />
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-4">

@@ -42,6 +42,8 @@ async function createMenuItem(req, res) {
   });
   if (!category) throw ApiError.badRequest('Invalid categoryId for this restaurant');
 
+  await assertItemNameNotDuplicate(data.categoryId, data.name);
+
   const item = await prisma.menuItem.create({
     data: {
       ...data,
@@ -76,6 +78,10 @@ async function updateMenuItem(req, res) {
       where: { id: req.body.categoryId, restaurantId: req.restaurantId },
     });
     if (!category) throw ApiError.badRequest('Invalid categoryId for this restaurant');
+  }
+
+  if (req.body.name) {
+    await assertItemNameNotDuplicate(req.body.categoryId || item.categoryId, req.body.name, item.id);
   }
 
   const updated = await prisma.menuItem.update({
@@ -122,6 +128,24 @@ async function deleteMenuItem(req, res) {
   res.json({ success: true, message: 'Menu item deleted' });
 }
 
+// Guards against the same item being added twice to a category under
+// different casing/spacing ("Paneer Tikka" vs "paneer tikka ") — the
+// duplicate-items bug. Scoped to categoryId (not the whole restaurant)
+// since the same dish name legitimately appearing in two different
+// categories (e.g. a "Combo" section) isn't a duplicate. Also used by
+// the Excel/CSV importer to decide whether to reuse an existing item.
+async function assertItemNameNotDuplicate(categoryId, name, excludingId = null) {
+  const normalized = String(name).trim().toLowerCase();
+  const existing = await prisma.menuItem.findMany({
+    where: { categoryId, ...(excludingId ? { id: { not: excludingId } } : {}) },
+    select: { id: true, name: true },
+  });
+  const clash = existing.find((i) => i.name.trim().toLowerCase() === normalized);
+  if (clash) {
+    throw ApiError.conflict(`An item named "${clash.name}" already exists in this category`);
+  }
+}
+
 module.exports = {
   listMenuItems,
   getMenuItem,
@@ -129,4 +153,5 @@ module.exports = {
   updateMenuItem,
   toggleAvailability,
   deleteMenuItem,
+  assertItemNameNotDuplicate,
 };

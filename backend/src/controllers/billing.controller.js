@@ -37,6 +37,11 @@ async function getBilling(req, res) {
       revenueModel: restaurant.revenueModel,
       commissionRatePercent: restaurant.commissionRatePercent,
       customLimitsActive: bypassActive,
+      // SuperAdmin-controlled feature toggles for this tenant — read by
+      // ReportDownloadButtons (excel/print export) and the Settings
+      // page's backup section.
+      excelExportEnabled: restaurant.excelExportEnabled,
+      backupEnabled: restaurant.backupEnabled,
       plan: plan
         ? {
             id: plan.id,

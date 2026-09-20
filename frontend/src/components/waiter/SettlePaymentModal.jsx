@@ -35,7 +35,11 @@ export default function SettlePaymentModal({ open, onClose, table, onSettled }) 
     setPrinting(true);
     try {
       const { restaurant, table: t, orders } = await waiterApi.getTableBill(table.id);
-      printReceipt(buildBillHtml({ restaurant, table: t, orders }));
+      // Print the amount the guest will actually be charged (net of
+      // any discount already entered in this modal) — the receipt
+      // itself never labels it as a discount, it just shows the right
+      // final total, same as after settlement.
+      printReceipt(buildBillHtml({ restaurant, table: t, orders, amountPaid: discount > 0 ? payable : undefined }));
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to load bill for printing');
     } finally {
