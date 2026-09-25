@@ -12,7 +12,8 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "prisma:seed": "node prisma/seed.js",
-    "dedupe:menu": "node scripts/dedupeMenuData.js"
+    "dedupe:menu": "node scripts/dedupeMenuData.js",
+    "cleanup:records": "node scripts/cleanupUnwantedRecords.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

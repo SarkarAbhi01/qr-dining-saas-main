@@ -6,9 +6,29 @@ import { restaurantApi } from '@/api/restaurant';
 import { downloadBlob } from '@/utils/reportExport';
 import Modal from '@/components/Modal';
 import MenuItemModal from '@/components/MenuItemModal';
+import SearchSortFilterBar from '@/components/SearchSortFilterBar';
 
 const TYPE_ICON = { VEG: Leaf, VEGAN: Leaf, NON_VEG: Drumstick, EGG: Drumstick };
 const TYPE_COLOR = { VEG: 'text-basil', VEGAN: 'text-basil', NON_VEG: 'text-chili', EGG: 'text-saffron-dark' };
+
+const SORT_OPTIONS = [
+  { value: 'name-asc', label: 'Name (A–Z)' },
+  { value: 'name-desc', label: 'Name (Z–A)' },
+  { value: 'price-asc', label: 'Price (low–high)' },
+  { value: 'price-desc', label: 'Price (high–low)' },
+];
+const TYPE_FILTER_OPTIONS = [
+  { value: '', label: 'All types' },
+  { value: 'VEG', label: 'Veg' },
+  { value: 'NON_VEG', label: 'Non-veg' },
+  { value: 'EGG', label: 'Egg' },
+  { value: 'VEGAN', label: 'Vegan' },
+];
+const AVAILABILITY_FILTER_OPTIONS = [
+  { value: '', label: 'All items' },
+  { value: 'available', label: 'Available' },
+  { value: 'unavailable', label: "86'd only" },
+];
 
 export default function Menu() {
   const [categories, setCategories] = useState([]);
@@ -31,6 +51,17 @@ export default function Menu() {
   // Also enforced server-side in menuImport.controller.js, so this
   // isn't just a UI-level hide.
   const [excelEnabled, setExcelEnabled] = useState(true);
+
+  // --- Search / filter / sort (client-side over the already-loaded
+  // menu — no need to round-trip to the backend for a list this size).
+  // A non-empty search intentionally looks across EVERY category, not
+  // just the active tab, since "find this dish" is more useful than
+  // "find this dish, but only if I already happen to be on the right
+  // tab" — the type/availability filters and sort still apply on top.
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [availabilityFilter, setAvailabilityFilter] = useState('');
+  const [sort, setSort] = useState('name-asc');
 
   useEffect(() => {
     restaurantApi
@@ -152,7 +183,27 @@ export default function Menu() {
     }
   }
 
-  const visibleItems = items.filter((i) => i.categoryId === activeCategory);
+  const query = search.trim().toLowerCase();
+  const visibleItems = items
+    .filter((i) => (query ? true : i.categoryId === activeCategory))
+    .filter((i) =>
+      query ? i.name.toLowerCase().includes(query) || (i.description || '').toLowerCase().includes(query) : true
+    )
+    .filter((i) => (typeFilter ? i.type === typeFilter : true))
+    .filter((i) =>
+      availabilityFilter === 'available'
+        ? i.isAvailable
+        : availabilityFilter === 'unavailable'
+        ? !i.isAvailable
+        : true
+    )
+    .sort((a, b) => {
+      if (sort === 'name-asc') return a.name.localeCompare(b.name);
+      if (sort === 'name-desc') return b.name.localeCompare(a.name);
+      if (sort === 'price-asc') return Number(a.price) - Number(b.price);
+      if (sort === 'price-desc') return Number(b.price) - Number(a.price);
+      return 0;
+    });
 
   if (loading) return <div className="p-6 text-sm text-slate">Loading menu…</div>;
 
@@ -173,7 +224,7 @@ export default function Menu() {
               className={`group flex items-center gap-1 rounded px-2 py-1.5 cursor-pointer text-sm ${
                 activeCategory === c.id ? 'staff-menu-active' : 'hover:bg-paper-dim text-ink'
               }`}
-              onClick={() => setActiveCategory(c.id)}
+              onClick={() => { setActiveCategory(c.id); setSearch(''); }}
             >
               <span className="flex-1 truncate">{c.name}</span>
               <span className={`text-xs ${activeCategory === c.id ? 'text-paper/70' : 'text-slate'}`}>
@@ -202,7 +253,7 @@ export default function Menu() {
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display text-lg text-ink">
-            {categories.find((c) => c.id === activeCategory)?.name || 'Items'}
+            {query ? `Search results` : categories.find((c) => c.id === activeCategory)?.name || 'Items'}
           </h2>
           <div className="flex items-center gap-2">
             <input
@@ -240,6 +291,26 @@ export default function Menu() {
             </button>
           </div>
         </div>
+
+        <SearchSortFilterBar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search all items by name or description…"
+          sortOptions={SORT_OPTIONS}
+          sortValue={sort}
+          onSortChange={setSort}
+          filters={[
+            { key: 'type', label: 'Type', value: typeFilter, onChange: setTypeFilter, options: TYPE_FILTER_OPTIONS },
+            {
+              key: 'availability',
+              label: 'Availability',
+              value: availabilityFilter,
+              onChange: setAvailabilityFilter,
+              options: AVAILABILITY_FILTER_OPTIONS,
+            },
+          ]}
+          className="mb-4"
+        />
 
         <div className="grid sm:grid-cols-2 gap-3">
           {visibleItems.map((item) => {
@@ -293,7 +364,11 @@ export default function Menu() {
             );
           })}
           {visibleItems.length === 0 && categories.length > 0 && (
-            <p className="text-sm text-slate col-span-2">No items in this category yet.</p>
+            <p className="text-sm text-slate col-span-2">
+              {query || typeFilter || availabilityFilter
+                ? 'No items match your search/filters.'
+                : 'No items in this category yet.'}
+            </p>
           )}
         </div>
       </div>

@@ -6,6 +6,7 @@ import { Wallet } from 'lucide-react';
 import { waiterApi } from '@/api/waiter';
 import { useSocket } from '@/sockets/useSocket';
 import SettlePaymentModal from '@/components/waiter/SettlePaymentModal';
+import SearchSortFilterBar from '@/components/SearchSortFilterBar';
 
 const STATUS_STYLES = {
   EMPTY: 'bg-basil-soft border-basil text-basil',
@@ -21,11 +22,31 @@ const STATUS_LABEL = {
   RESERVED: 'Reserved',
 };
 
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'EMPTY', label: 'Empty' },
+  { value: 'OCCUPIED', label: 'Occupied' },
+  { value: 'NEEDS_ATTENTION', label: 'Needs attention' },
+  { value: 'RESERVED', label: 'Reserved' },
+];
+const SORT_OPTIONS = [
+  { value: 'number-asc', label: 'Table # (low–high)' },
+  { value: 'number-desc', label: 'Table # (high–low)' },
+];
+
+// Natural sort so "T2" sorts before "T10" instead of after it.
+function compareTableNumbers(a, b) {
+  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+}
+
 export default function TableGrid() {
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [myStats, setMyStats] = useState(null);
   const [settleTable, setSettleTable] = useState(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [sort, setSort] = useState('number-asc');
 
   const load = useCallback(() => {
     waiterApi
@@ -53,6 +74,14 @@ export default function TableGrid() {
     'payment:confirmed': () => load(),
   });
 
+  const query = search.trim().toLowerCase();
+  const visibleTables = tables
+    .filter((t) => (query ? String(t.tableNumber).toLowerCase().includes(query) : true))
+    .filter((t) => (statusFilter ? t.status === statusFilter : true))
+    .sort((a, b) =>
+      sort === 'number-desc' ? compareTableNumbers(b.tableNumber, a.tableNumber) : compareTableNumbers(a.tableNumber, b.tableNumber)
+    );
+
   return (
     <div className="p-4 md:p-6">
       <div className="flex items-center justify-between mb-1">
@@ -67,11 +96,28 @@ export default function TableGrid() {
         Tap a table to take a manual order, or the wallet icon to collect payment.
       </p>
 
+      <SearchSortFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by table number…"
+        sortOptions={SORT_OPTIONS}
+        sortValue={sort}
+        onSortChange={setSort}
+        filters={[
+          { key: 'status', label: 'Status', value: statusFilter, onChange: setStatusFilter, options: STATUS_FILTER_OPTIONS },
+        ]}
+        className="mb-4"
+      />
+
       {loading ? (
         <p className="text-sm text-slate">Loading…</p>
+      ) : visibleTables.length === 0 ? (
+        <p className="text-sm text-slate">
+          {tables.length === 0 ? 'No tables set up yet.' : 'No tables match your search/filters.'}
+        </p>
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-          {tables.map((t) => {
+          {visibleTables.map((t) => {
             const hasBalance = t.session && Number(t.session.totalAmount) > 0;
             return (
               <div key={t.id} className="relative">

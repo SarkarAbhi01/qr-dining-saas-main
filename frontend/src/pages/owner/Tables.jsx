@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { restaurantApi } from '@/api/restaurant';
 import Modal from '@/components/Modal';
 import { useSocket } from '@/sockets/useSocket';
+import SearchSortFilterBar from '@/components/SearchSortFilterBar';
 
 const STATUS_STYLES = {
   EMPTY: 'bg-basil-soft text-basil',
@@ -13,6 +14,27 @@ const STATUS_STYLES = {
   NEEDS_ATTENTION: 'bg-saffron/20 text-saffron-dark',
   RESERVED: 'bg-cobalt-soft text-cobalt',
 };
+
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'EMPTY', label: 'Empty' },
+  { value: 'OCCUPIED', label: 'Occupied' },
+  { value: 'NEEDS_ATTENTION', label: 'Needs attention' },
+  { value: 'RESERVED', label: 'Reserved' },
+];
+const SORT_OPTIONS = [
+  { value: 'number-asc', label: 'Table # (low–high)' },
+  { value: 'number-desc', label: 'Table # (high–low)' },
+  { value: 'capacity-asc', label: 'Capacity (low–high)' },
+  { value: 'capacity-desc', label: 'Capacity (high–low)' },
+];
+
+// Natural sort for table numbers/names that mix letters and digits
+// (e.g. "T2" before "T10") — a plain string compare would put "T10"
+// before "T2".
+function compareTableNumbers(a, b) {
+  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+}
 
 // QR is rendered right here in the browser rather than relying on a
 // backend-generated image. That means it encodes whatever origin the
@@ -80,6 +102,10 @@ export default function Tables() {
   const [singleForm, setSingleForm] = useState({ tableNumber: '', capacity: 4 });
   const [bulkForm, setBulkForm] = useState({ prefix: 'T', startAt: 1, count: 10, capacity: 4 });
 
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [sort, setSort] = useState('number-asc');
+
   async function load() {
     setLoading(true);
     try {
@@ -139,6 +165,18 @@ export default function Tables() {
 
   if (loading) return <div className="p-6 text-sm text-slate">Loading tables…</div>;
 
+  const query = search.trim().toLowerCase();
+  const visibleTables = tables
+    .filter((t) => (query ? String(t.tableNumber).toLowerCase().includes(query) : true))
+    .filter((t) => (statusFilter ? t.status === statusFilter : true))
+    .sort((a, b) => {
+      if (sort === 'number-asc') return compareTableNumbers(a.tableNumber, b.tableNumber);
+      if (sort === 'number-desc') return compareTableNumbers(b.tableNumber, a.tableNumber);
+      if (sort === 'capacity-asc') return a.capacity - b.capacity;
+      if (sort === 'capacity-desc') return b.capacity - a.capacity;
+      return 0;
+    });
+
   return (
     <div className="p-4 md:p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-6">
@@ -166,14 +204,30 @@ export default function Tables() {
         </div>
       </div>
 
+      <SearchSortFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by table number…"
+        sortOptions={SORT_OPTIONS}
+        sortValue={sort}
+        onSortChange={setSort}
+        filters={[
+          { key: 'status', label: 'Status', value: statusFilter, onChange: setStatusFilter, options: STATUS_FILTER_OPTIONS },
+        ]}
+        className="mb-4"
+      />
+
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {tables.map((t) => (
+        {visibleTables.map((t) => (
           <TableQrCard key={t.id} table={t} onDelete={handleDelete} />
         ))}
-        {tables.length === 0 && (
-          <p className="text-sm text-slate col-span-full">No tables yet — add your first one above.</p>
+        {visibleTables.length === 0 && (
+          <p className="text-sm text-slate col-span-full">
+            {tables.length === 0 ? 'No tables yet — add your first one above.' : 'No tables match your search/filters.'}
+          </p>
         )}
       </div>
+
 
       {/* --- Single table modal --- */}
       <Modal open={singleOpen} onClose={() => setSingleOpen(false)} title="New table">
